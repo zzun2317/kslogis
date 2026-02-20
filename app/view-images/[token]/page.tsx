@@ -6,36 +6,37 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY! // 보안을 위해 서버에서 조회
 );
 
-export default async function ViewImages({ params }: { params: { ordNo: string } }) {
+export default async function ViewImages({ params }: { params: { token: string } }) {
   const resolvedParams = await params;
-  const ordNo = resolvedParams.ordNo;
-  console.log("📍 수신된 주문번호:", ordNo);
+  const { token } = await params;
+  console.log("📍 수신된 token번호:", token);
 
   // DB에서 해당 주문번호의 모든 이미지 가져오기
-  const { data: images, error } = await supabase
+  const { data: masterData, error: masterError } = await supabase
+    .from('ks_devcustm')
+    .select('cust_ordno')
+    .eq('cust_imgtoken', token)
+    .single();
+
+  if (masterError || !masterData) {
+    return <div>유효하지 않거나 만료된 링크입니다.</div>;
+  }
+
+  const ordNo = masterData.cust_ordno;
+
+  // 2. 찾아낸 ordNo로 이미지를 조회합니다 (기존 로직 동일)
+  const { data: images } = await supabase
     .from('ks_devimages')
     .select('*')
     .eq('cust_ordno', ordNo);
 
-    if (error || !images || images.length === 0) {
-      return (
-        <div style={{ padding: '20px' }}>
-          <h3>❌ 이미지를 찾을 수 없습니다.</h3>
-          <p>전달된 ordNo: "<strong>{ordNo}</strong>"</p>
-          <p>에러 내용: {error?.message || '없음'}</p>
-          <hr />
-          <p>팁: DB에서 <code>cust_ordno</code> 컬럼에 공백이 있거나 타입이 다른지 확인해 보세요.</p>
-        </div>
-      );
-    }
-
-  // if (error || !images || images.length === 0) {
-  //   return <div style={{ padding: '20px', textAlign: 'center' }}>등록된 배송 이미지가 없습니다.</div>;
-  // }
+  if (masterError || !images || images.length === 0) {
+    return <div style={{ padding: '20px', textAlign: 'center' }}>등록된 배송 이미지가 없습니다.</div>;
+  }
 
   return (
     <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto', fontFamily: 'sans-serif' }}>
-      <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', textAlign: 'center' }}>📸 배송 완료 사진 확인</h2>
+      <h2 style={{ fontSize: '1.2rem', marginBottom: '20px', textAlign: 'center' }}>배송 완료 사진 확인</h2>
       <p style={{ color: '#666', marginBottom: '10px' }}>주문번호: {ordNo}</p>
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
