@@ -29,7 +29,8 @@ export default async function ViewImages({ params }: { params: { ordNo: string }
           <div key={img.id} style={{ border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden' }}>
             {/* Storage의 Public URL을 생성해서 보여줌 */}
             <img 
-              src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/delivery_images/${img.img_url}`} 
+              // src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/delivery_images/${img.img_url}`} <-- 기존 (중복됨)
+              src={img.img_url} // ✅ 이미 전체 URL이 저장되어 있으므로 컬럼 값 그대로 사용!
               alt="배송사진" 
               style={{ width: '100%', display: 'block' }} 
             />
@@ -41,7 +42,7 @@ export default async function ViewImages({ params }: { params: { ordNo: string }
       </div>
       
       <footer style={{ marginTop: '30px', textAlign: 'center', fontSize: '0.8rem', color: '#ccc' }}>
-        © KS LOGIS - 안전하게 배송을 완료하였습니다.
+        © KS LOGIS - 배송을 완료하였습니다.
       </footer>
     </div>
   );
