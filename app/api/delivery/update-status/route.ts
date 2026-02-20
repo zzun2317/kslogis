@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     // await를 붙이지 않고 백그라운드에서 실행하려면 .catch를 활용합니다.
     if (status === 'START' || status === 'COMPLETE') {
       // ✅ 모든 인자를 하나의 객체 { } 로 묶어서 전달합니다.
-      sendAlimtalk({
+      await sendAlimtalk({
         status,
         phone,
         name,
