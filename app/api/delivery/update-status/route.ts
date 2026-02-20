@@ -23,7 +23,10 @@ export async function POST(request: Request) {
     // 2. 알림톡 발송 (START 또는 COMPLETE 상태일 때)
     // await를 붙이지 않고 백그라운드에서 실행하려면 .catch를 활용합니다.
     if (status === 'START' || status === 'COMPLETE') {
-      sendAlimtalk(status, phone, {
+      // ✅ 모든 인자를 하나의 객체 { } 로 묶어서 전달합니다.
+      sendAlimtalk({
+        status,
+        phone,
         name,
         ordNo,
         items,
