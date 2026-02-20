@@ -15,9 +15,21 @@ export default async function ViewImages({ params }: { params: { ordNo: string }
     .select('*')
     .eq('cust_ordno', ordNo);
 
-  if (error || !images || images.length === 0) {
-    return <div style={{ padding: '20px', textAlign: 'center' }}>등록된 배송 이미지가 없습니다.</div>;
-  }
+    if (error || !images || images.length === 0) {
+      return (
+        <div style={{ padding: '20px' }}>
+          <h3>❌ 이미지를 찾을 수 없습니다.</h3>
+          <p>전달된 ordNo: "<strong>{ordNo}</strong>"</p>
+          <p>에러 내용: {error?.message || '없음'}</p>
+          <hr />
+          <p>팁: DB에서 <code>cust_ordno</code> 컬럼에 공백이 있거나 타입이 다른지 확인해 보세요.</p>
+        </div>
+      );
+    }
+
+  // if (error || !images || images.length === 0) {
+  //   return <div style={{ padding: '20px', textAlign: 'center' }}>등록된 배송 이미지가 없습니다.</div>;
+  // }
 
   return (
     <div style={{ padding: '20px', maxWidth: '600px', margin: '0 auto', fontFamily: 'sans-serif' }}>
