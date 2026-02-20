@@ -103,15 +103,15 @@ export const sendAlimtalk = async ({
         "#{item_name}": items || "주문 상품",
         "#{driver_name}": driverName || "배송 담당자",
         "#{driver_hpno}": driverHp || "",
-        // "#{url}": urlVariable,
-        "#{url}": linkUrl,
+        "#{url}": urlVariable,
       };
     } else {
       kakaoVariables = {
         "#{cust_name}": name,
         "#{cust_ordno}": ordNo || "",
         "#{cust_setname}": items || "주문 상품",
-        "#{url}": urlVariable,
+        // "#{url}": urlVariable,
+        "#{url}": linkUrl,
       };
     }
 
