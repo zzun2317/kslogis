@@ -62,6 +62,9 @@ export const sendAlimtalk = async ({
     // 2-1. [배송 완료] 이미지 처리
     if (status === 'COMPLETE') {
       let finalImageUrl = imageUrl;
+      if (!linkUrl && ordNo) {
+        linkUrl = `kslogis.vercel.app/view-images/${ordNo}`;
+      }
       if (!finalImageUrl && ordNo) {
         const { data: imageData } = await supabase
           .from('ks_devimages')
@@ -100,7 +103,8 @@ export const sendAlimtalk = async ({
         "#{item_name}": items || "주문 상품",
         "#{driver_name}": driverName || "배송 담당자",
         "#{driver_hpno}": driverHp || "",
-        "#{url}": urlVariable,
+        // "#{url}": urlVariable,
+        "#{url}": linkUrl,
       };
     } else {
       kakaoVariables = {
