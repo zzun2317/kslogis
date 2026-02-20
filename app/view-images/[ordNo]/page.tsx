@@ -7,7 +7,9 @@ const supabase = createClient(
 );
 
 export default async function ViewImages({ params }: { params: { ordNo: string } }) {
-  const { ordNo } = params;
+  const resolvedParams = await params;
+  const ordNo = resolvedParams.ordNo;
+  console.log("📍 수신된 주문번호:", ordNo);
 
   // DB에서 해당 주문번호의 모든 이미지 가져오기
   const { data: images, error } = await supabase
