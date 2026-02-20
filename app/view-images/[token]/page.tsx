@@ -28,7 +28,8 @@ export default async function ViewImages({ params }: { params: { token: string }
   const { data: images } = await supabase
     .from('ks_devimages')
     .select('*')
-    .eq('cust_ordno', ordNo);
+    .eq('cust_ordno', ordNo)
+    .eq('img_type', 'PHOTO');
 
   if (masterError || !images || images.length === 0) {
     return <div style={{ padding: '20px', textAlign: 'center' }}>등록된 배송 이미지가 없습니다.</div>;
@@ -50,7 +51,7 @@ export default async function ViewImages({ params }: { params: { token: string }
               style={{ width: '100%', display: 'block' }} 
             />
             <div style={{ padding: '8px', background: '#f9f9f9', fontSize: '0.8rem', color: '#888' }}>
-              구분: {img.img_type === 'SIGN' ? '고객 서명' : '배송 현장'}
+              배송사진
             </div>
           </div>
         ))}
