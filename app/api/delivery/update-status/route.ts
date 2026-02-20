@@ -6,7 +6,7 @@ export async function POST(request: Request) {
   try {
     // 1. 앱에서 보낸 데이터(body) 가져오기
     const body = await request.json();
-    console.log("📥 [Vercel API] 앱에서 받은 데이터:", body);
+    //console.log("📥 [Vercel API] 앱에서 받은 데이터:", body);
     const { 
       status, 
       phone, 
@@ -17,7 +17,8 @@ export async function POST(request: Request) {
       driverHp, 
       lat, 
       lng, 
-      imageUrl 
+      imageUrl,
+      linkUrl 
     } = body;
 
     // 2. 알림톡 발송 (START 또는 COMPLETE 상태일 때)
@@ -34,7 +35,8 @@ export async function POST(request: Request) {
         driverHp,
         lat,
         lng,
-        imageUrl
+        imageUrl,
+        linkUrl
       }).catch(err => console.error('🚀 알림톡 발송 실패:', err));
     }
 
