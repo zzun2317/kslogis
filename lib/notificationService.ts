@@ -27,9 +27,10 @@ export const sendAlimtalk = async (
     imageUrl?: string;
   }
 ) => {
+  console.log(`🚀 [Service] 알림톡 함수 진입 - 상태: ${status}, 수신: ${name}`);
   try {
     const targetCode = status === 'START' ? 'DELIVERY_START' : 'DELIVERY_COMPLETE';
-
+console.log(`🔍 [Service] DB 템플릿 조회 시도 (code: ${targetCode})`);
     // 1. DB에서 템플릿 정보 조회 (기존 로직 유지)
     const { data: templateData, error: dbError } = await supabase
       .from('kakao_template')
@@ -39,11 +40,13 @@ export const sendAlimtalk = async (
       .single();
 
     if (dbError || !templateData) {
+      console.error('❌ [Service] 템플릿 조회 실패:', dbError?.message || '데이터 없음');
       throw new Error(`DB에 ${targetCode} 상태에 대한 템플릿이 없습니다.`);
     }
 
     let urlVariable = "";
-
+console.log(`✅ [Service] 템플릿 조회 성공: ${templateData.template_id}`);
+console.log(`📤 [Service] Solapi 요청 전송 시도...`);
     // 2-1. [배송 완료] 이미지 처리
     if (status === 'COMPLETE') {
       let finalImageUrl = data.imageUrl;
