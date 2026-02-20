@@ -11,7 +11,7 @@ const supabaseAdmin = createClient(
 export async function POST(request: Request) {
   try {
     const { email } = await request.json();
-
+    console.log("🔍 [API] 요청받은 이메일:", email);
     // 1. 트리거가 생성해준 ks_users 테이블에서 유저 정보(Role 포함) 조회
     const { data: user, error } = await supabaseAdmin
       .from('ks_users')
@@ -20,12 +20,14 @@ export async function POST(request: Request) {
       .single();
 
     if (error || !user) {
+      console.error("❌ [API] DB 조회 에러:", error);  
       return NextResponse.json({ message: '등록되지 않은 사용자입니다.' }, { status: 401 });
     }
-
+    console.log("✅ [API] 조회된 유저 권한:", user.role);
     // 2. 권한 정보를 포함한 유저 데이터 반환
     return NextResponse.json(user);
   } catch (err) {
+    console.error("🔥 [API] 서버 내부 에러:", err);
     return NextResponse.json({ error: '서버 에러' }, { status: 500 });
   }
 }

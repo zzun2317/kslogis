@@ -144,6 +144,7 @@ export default function LoginPage() {
 
           if (response.ok) {
             const fetchedData = await response.json();
+            console.log("📝 [Front] 서버에서 받은 유저 데이터:", fetchedData);
             if (fetchedData) userData = fetchedData;
           }
         } catch (fetchErr) {
