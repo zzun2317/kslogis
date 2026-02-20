@@ -13,18 +13,28 @@ const messageService = new SolapiMessageService(
   process.env.SOLAPI_API_SECRET!
 );
 
-export const sendAlimtalk = async (
-  status: 'START' | 'COMPLETE',
-  phone: string,
-  data: { 
-    name: string;
-    ordNo?: string;
-    items?: string;
-    driverName?: string;
-    driverHp?: string;
-    lat?: number;
-    lng?: number;
-    imageUrl?: string;
+export const sendAlimtalk = async ({
+  status,
+  phone,
+  name,
+  ordNo,
+  items,
+  driverName,
+  driverHp,
+  lat,
+  lng,
+  imageUrl
+}: { 
+  status: 'START' | 'COMPLETE';
+  phone: string;
+  name: string;      // ✅ name을 구조 분해 할당 목록에 직접 넣습니다.
+  ordNo?: string;
+  items?: string;
+  driverName?: string;
+  driverHp?: string;
+  lat?: number;
+  lng?: number;
+  imageUrl?: string;
   }
 ) => {
   console.log(`🚀 [Service] 알림톡 함수 진입 - 상태: ${status}, 수신: ${name}`);
@@ -49,12 +59,12 @@ console.log(`✅ [Service] 템플릿 조회 성공: ${templateData.template_id}`
 console.log(`📤 [Service] Solapi 요청 전송 시도...`);
     // 2-1. [배송 완료] 이미지 처리
     if (status === 'COMPLETE') {
-      let finalImageUrl = data.imageUrl;
-      if (!finalImageUrl && data.ordNo) {
+      let finalImageUrl = imageUrl;
+      if (!finalImageUrl && ordNo) {
         const { data: imageData } = await supabase
           .from('ks_devimages')
           .select('img_url')
-          .eq('cust_ordno', data.ordNo)
+          .eq('cust_ordno', ordNo)
           .eq('img_type', 'PHOTO')
           .order('reg_date', { ascending: false })
           .limit(1)
@@ -74,27 +84,27 @@ console.log(`📤 [Service] Solapi 요청 전송 시도...`);
       }
     }
     // 2-2. [배송 출발] 위치 처리
-    else if (status === 'START' && data.lat && data.lng) {
+    else if (status === 'START' && lat && lng) {
       const label = encodeURIComponent("배송기사위치");
-      urlVariable = `map.kakao.com/link/map/${label},${data.lat},${data.lng}`;
+      urlVariable = `map.kakao.com/link/map/${label},${lat},${lng}`;
     }
 
     // 3. 변수 구성
     let kakaoVariables: any = {};
     if (status === 'START') {
       kakaoVariables = {
-        "#{cust_name}": data.name,
-        "#{cust_ordno}": data.ordNo || "",
-        "#{item_name}": data.items || "주문 상품",
-        "#{driver_name}": data.driverName || "배송 담당자",
-        "#{driver_hpno}": data.driverHp || "",
+        "#{cust_name}": name,
+        "#{cust_ordno}": ordNo || "",
+        "#{item_name}": items || "주문 상품",
+        "#{driver_name}": driverName || "배송 담당자",
+        "#{driver_hpno}": driverHp || "",
         "#{url}": urlVariable,
       };
     } else {
       kakaoVariables = {
-        "#{cust_name}": data.name,
-        "#{cust_ordno}": data.ordNo || "",
-        "#{cust_setname}": data.items || "주문 상품",
+        "#{cust_name}": name,
+        "#{cust_ordno}": ordNo || "",
+        "#{cust_setname}": items || "주문 상품",
         "#{url}": urlVariable,
       };
     }
