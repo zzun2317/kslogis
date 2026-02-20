@@ -136,7 +136,7 @@ export default function LoginPage() {
         let userData = { user_role: ROLE_CODE.GUEST, user_name: '사용자', user_id: '', user_center: '' };
 
         try {
-          const response = await fetch('http://localhost:4000/auth/login-check', {
+          const response = await fetch('/api/auth/login-check', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: authData.user.email.trim() }),

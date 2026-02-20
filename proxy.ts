@@ -1,19 +1,3 @@
-// proxy.ts
-// import { NextResponse, type NextRequest } from 'next/server';
-
-// export async function proxy(request: NextRequest) {
-//   // 🚀 보안 로직을 대폭 완화합니다. 
-//   // 일단 모든 요청을 통과시키고, 나중에 페이지 내부에서 세션을 체크하겠습니다.
-//   return NextResponse.next();
-// }
-
-// export default proxy;
-
-// export const config = {
-//   // 매처를 최소화하거나 비워두어 미들웨어가 간섭하지 못하게 합니다.
-//   matcher: [], 
-// };
-
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
