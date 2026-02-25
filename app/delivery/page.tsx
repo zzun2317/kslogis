@@ -6,15 +6,7 @@ import { useAuth } from '@/hook/useAuth';
 
 export default function DeliveryAdminPage() {
   const { user, isLocalManager, userCenterList, isDriver, isMaster, canAccessWeb } = useAuth(); // 2. 권한 정보 가져오기
-  if (!user || isDriver || !canAccessWeb) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-slate-50">
-        <div className="text-center p-10 bg-white rounded-2xl shadow-lg border border-slate-200">
-          <p className="text-slate-500 font-bold">접근 권한이 없습니다.</p>
-        </div>
-      </div>
-    );
-  }
+
   // --- 상태 정의 ---
   const [searchDate, setSearchDate] = useState(new Date().toISOString().split('T')[0]);
   const [searchName, setSearchName] = useState('');
@@ -31,15 +23,11 @@ export default function DeliveryAdminPage() {
   const [centerCodes, setCenterCodes] = useState<any[]>([]); // 센터 목록
   const [searchCenter, setSearchCenter] = useState('전체');  // 선택된 센터 코드
   const searchParamsRef = React.useRef({ searchName, searchHp, searchDriver, searchAddr, searchCenter });
-
   // 입력값이 바뀔 때마다 Ref에 최신값 저장 (이것은 리렌더링이나 함수 재생성을 일으키지 않음)
   React.useEffect(() => {
     searchParamsRef.current = { searchName, searchHp, searchDriver, searchAddr, searchCenter };
   }, [searchName, searchHp, searchDriver, searchAddr, searchCenter]);
-
-  
   const [showTopBtn, setShowTopBtn] = useState(false);
-
   // --- 스크롤 감시 (상단 이동 버튼용) ---
   useEffect(() => {
     const handleShowButton = () => {
@@ -49,7 +37,6 @@ export default function DeliveryAdminPage() {
     window.addEventListener("scroll", handleShowButton);
     return () => window.removeEventListener("scroll", handleShowButton);
   }, []);
-
   const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
   // 배송상태 조회
@@ -237,6 +224,15 @@ export default function DeliveryAdminPage() {
   };
 
   const inputBaseStyle = "border-2 border-slate-400 rounded-lg px-2 text-[14px] font-bold text-slate-900 bg-white outline-none focus:border-blue-600 h-[40px] transition-all";
+  if (!user || isDriver || !canAccessWeb) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-50">
+        <div className="text-center p-10 bg-white rounded-2xl shadow-lg border border-slate-200">
+          <p className="text-slate-500 font-bold">접근 권한이 없습니다.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 md:p-8 font-sans text-slate-900 relative">
@@ -650,9 +646,9 @@ export default function DeliveryAdminPage() {
               </div>
               <button 
                 onClick={() => setPreviewIndex(null)}
-                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-500 text-2xl transition-colors"
+                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-400 text-2xl transition-colors"
               >
-                
+              ✕
               </button>
             </div>
 

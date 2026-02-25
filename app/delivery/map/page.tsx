@@ -49,7 +49,7 @@ export default function DeliveryMapPage() {
   const YANGJU_BASE = { lat: 37.7853, lng: 127.0457 };
   // 환경 변수에서 가져오기
   const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
-useEffect(() => {
+  useEffect(() => {
     const fetchDrivers = async () => {
       // 🌟 user가 로드되지 않았거나 권한 정보가 없으면 대기
       if (!user?.user_role) return;
@@ -190,6 +190,13 @@ useEffect(() => {
 
   const fetchDriverDeliveries = async () => {
     if (!selectedDriver) return alert('기사를 선택해주세요.');
+
+    // 카카오맵 서비스 라이브러리 로드 체크
+    if (!window.kakao || !window.kakao.maps || !window.kakao.maps.services) {
+      alert('지도가 화면에 보이지 않을 경우 새로고침(F5) 후 조회 바랍니다.');
+      return;
+    }
+
     setLoading(true);
     
     const { data, error } = await supabase
@@ -307,7 +314,7 @@ useEffect(() => {
 
       <header className="bg-white border-b border-slate-200 p-4 flex items-center justify-between shadow-sm z-10">
         <div className="flex items-center gap-4">
-            <h1 className="text-xl font-black text-slate-800 mr-4">🚚 스마트 배송 편집</h1>
+            <h1 className="text-xl font-black text-slate-800 mr-4">배송 순서 편집</h1>
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-slate-500">배송일자</span>
               <input 

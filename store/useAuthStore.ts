@@ -16,13 +16,11 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       role: null,
       isLoggedIn: false,
-      // 로그인 성공 시 사용자 정보와 권한을 저장하고 로그인 상태를 true로 변경
       setAuth: (user, role) => set({ 
         user, 
         role, 
         isLoggedIn: true 
       }),
-      // 로그아웃 시 모든 정보를 초기화
       clearAuth: () => set({ 
         user: null, 
         role: null, 
@@ -30,8 +28,10 @@ export const useAuthStore = create<AuthState>()(
       }),
     }),
     {
-      name: 'ks-auth-storage', // 브라우저 로컬스토리지에 저장될 키 이름
-      storage: createJSONStorage(() => localStorage), // 명시적으로 localStorage 사용 설정
+      name: 'ks-auth-storage',
+      // ✅ localStorage 대신 sessionStorage로 변경하세요!
+      // 이렇게 하면 브라우저 탭이나 창을 닫을 때 데이터가 자동으로 삭제됩니다.
+      storage: createJSONStorage(() => sessionStorage), 
     }
   )
 );

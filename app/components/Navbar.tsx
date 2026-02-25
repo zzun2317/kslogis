@@ -4,8 +4,10 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase'; 
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
+import { useAuthStore } from '@/store/useAuthStore';
 
 export default function Navbar() {
+  const { user, role } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname(); 
   const [session, setSession] = useState<any>(null);
@@ -66,6 +68,14 @@ export default function Navbar() {
     };
   }, [router, isAuthPage]);
 
+  // 2. 🔥 [중요] 유저 정보나 권한이 확인된 시점에 메뉴 로드 (추가)
+  useEffect(() => {
+    // 세션 정보가 있고, 스토어에 role과 user 정보가 들어왔을 때 실행
+    if (session && (role || user?.id)) {
+      fetchDynamicMenus();
+    }
+  }, [session, role, user?.id]); // 의존성 추가
+
   // 메뉴 로딩 후 초기 스크롤 체크
   useEffect(() => {
     checkScroll();
@@ -73,16 +83,27 @@ export default function Navbar() {
 
   // --- 권한별 메뉴 가져오기 ---
   const fetchDynamicMenus = async () => {
-    const userRole = localStorage.getItem('user_role'); // 저장된 권한 코드 확인
-    const userUuid = localStorage.getItem('user_uuid'); // 로그인 시 저장여부 확인
-    if (!userRole || !userUuid) return;
+    // const userRole = localStorage.getItem('user_role'); // 저장된 권한 코드 확인
+    // const userUuid = localStorage.getItem('user_uuid'); // 로그인 시 저장여부 확인
+    const userRole = role || sessionStorage.getItem('user_role');
+    const userUuid = user?.id || sessionStorage.getItem('user_uuid');
+    console.log("🔍 [메뉴로드] 현재 상태:", { userRole, userUuid, storeUser: user?.id });
+    console.log("🔍 메뉴 로드 시도:", { userRole, userUuid });
+
+    if (!userRole || !userUuid) {
+      console.warn("⚠️ 권한 정보가 없어 메뉴를 불러올 수 없습니다.");
+      window.location.href = '/login';
+      return;
+    }
 
     try {
       // 1. 그룹 권한(Role) 조회
-      const { data: roleMenus } = await supabase
+      const { data: roleMenus, error: roleErr } = await supabase
         .from('ks_menu_auth')
         .select('menu_id')
         .or(`role_code.eq.${userRole},role_code.eq.ALL`);
+
+        console.log("🔍 [메뉴로드] RoleMenus 결과:", roleMenus, "에러:", roleErr);
 
       // 2. 사용자 개별 권한(UUID) 조회
       const { data: userMenus } = await supabase
@@ -96,8 +117,12 @@ export default function Navbar() {
         ...(userMenus?.map(m => m.menu_id) || [])
       ];
       const uniqueMenuIds = Array.from(new Set(combinedIds));
+      console.log("🔍 [메뉴로드] 최종 Menu IDs:", uniqueMenuIds);
 
-      if (uniqueMenuIds.length === 0) return setMenuList([]);
+      if (uniqueMenuIds.length === 0) {
+        console.warn("⚠️ [메뉴로드] 할당된 메뉴 ID가 하나도 없음");
+        return setMenuList([]);
+      }
 
       // 4. 최종 메뉴 정보 로드
       const { data, error } = await supabase
@@ -116,7 +141,13 @@ export default function Navbar() {
   // 로그인/회원가입 페이지에서는 네비바를 숨깁니다.
   if (isAuthPage) return null;
   // 세션이 없으면 네비바를 렌더링하지 않습니다 (미들웨어에 의해 어차피 /login으로 튕길 예정)
-  if (loading || !session) return null;
+  // if (loading || !session) return null;
+
+  // if (loading || !session) {
+  //   console.warn("❌ 인증 만료 또는 창 새로고침 감지 -> 로그인으로 이동");
+  //   window.location.href = '/login';
+  //   return;
+  // }
 
   // 🚀 로그아웃 처리 로직
   const handleSignOut = async () => {
@@ -127,7 +158,7 @@ export default function Navbar() {
         await supabase.auth.signOut();
 
         localStorage.removeItem('is_logged_in');
-        localStorage.removeItem('driver_email');
+        localStorage.removeItem('user_email'); // driver_email
         localStorage.removeItem('user_role');
         localStorage.removeItem('user_name');
         sessionStorage.clear();

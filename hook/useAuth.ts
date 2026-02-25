@@ -36,7 +36,7 @@ export const useAuth = () => {
     const canAccessWeb = user && !isDriver; 
 
     return {
-      user: { ...user, user_role: role }, // page.tsx에서 user.user_role을 쓰므로 이렇게 합쳐줍니다.
+      user: user ? { ...user, user_role: role } : null, // page.tsx에서 user.user_role을 쓰므로 이렇게 합쳐줍니다.
       roleCode: role,
       userCenter: rawCenter, 
       userCenterList,

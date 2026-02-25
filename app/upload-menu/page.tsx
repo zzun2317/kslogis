@@ -3,11 +3,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import Script from 'next/script';
-import { createClient } from '@supabase/supabase-js';
+import { useAuth } from '@/hook/useAuth';
+import { useAuthStore } from '@/store/useAuthStore';
+import { supabase } from '@/lib/supabase'; 
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
 declare global {
@@ -48,8 +48,12 @@ export default function ExcelUploadPage() {
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('처리 중입니다...');
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({});
+  const [regCnt, setRegCnt] = useState(0); //  검증 실행 횟수
+  const [refixCnt, setRefixCnt] = useState(0); // 남은 수정 대상(에러) 수량
   
-  const [userId, setUserId] = useState<string>('');
+  const user = useAuthStore((state) => state.user);
+  const userId = user?.id; // user 객체 안에 id가 들어있는지 확인 (UUID)
+  // const [userId, setUserId] = useState<string>('');
   const [userEmail, setUserEmail] = useState<string>('');
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -57,32 +61,18 @@ export default function ExcelUploadPage() {
 
   const [errors, setErrors] = useState<ValidationError[]>([]); 
   const [isValidated, setIsValidated] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
 
   const ROW_HEIGHT_CLASS = "h-12";
   const ROW_HEIGHT_PX = 48; 
 
   const REQUIRED_COLUMNS = [
-    '수주번호', '출하의뢰번호', '상차(요청)일', '하차(배송)일', 
+    '출하의뢰번호', '상차(요청)일', '하차(배송)일', 
     '품번', '요청수량', '주소1', '휴대전화번호'
   ];
 
   const DATE_COLUMNS = ['상차(요청)일', '하차(배송)일', '수주일'];
   const EDITABLE_COLUMNS = ['상차(요청)일', '하차(배송)일', '주소1', '주소2', '전화번호', '휴대전화번호'];
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setUserId(user.id);
-          setUserEmail(user.email || '');
-        }
-      } catch (e) {
-        console.error("Auth fetch error:", e);
-      }
-    };
-    fetchUser();
-  }, []);
 
   const errorRowIndices = new Set(errors.map(err => err.row));
   const errorRowsArray = Array.from(new Set(errors.map(err => err.row)));
@@ -176,7 +166,7 @@ export default function ExcelUploadPage() {
         .from('ks_common')
         .select('comm_ccode, comm_text2')
         .eq('comm_mcode', '004')
-        .abortSignal(AbortSignal.timeout(10000)); // 10초 타임아웃 추가
+        //.abortSignal(AbortSignal.timeout(10000)); // 10초 타임아웃 추가
 
       if (commonError) {
         // AbortError인 경우 재시도 유도 또는 알림
@@ -191,41 +181,69 @@ export default function ExcelUploadPage() {
         if (item.comm_text2) vehicleCodeMap.set(item.comm_text2.trim(), item.comm_ccode);
       });
 
-      for (let rowIndex = 0; rowIndex < updatedData.length; rowIndex++) {
-        const row = updatedData[rowIndex];
+      // 2. 수주번호(주문번호) 기준으로 유니크한 목록 생성 (시간 단축)
+      const uniqueOrders = Array.from(new Set(updatedData.map(row => row['수주번호'])));
+      const BATCH_SIZE = 40; // 40건씩 묶어서 병렬 처리
+      for (let i = 0; i < uniqueOrders.length; i += BATCH_SIZE) {
+        const batch = uniqueOrders.slice(i, i + BATCH_SIZE);
+        
+        await Promise.all(batch.map(async (orderNo) => {
+          const firstRowIndex = updatedData.findIndex(r => r['수주번호'] === orderNo);
+          const row = updatedData[firstRowIndex];
+          
+          // 필수 항목 체크 [cite: 1, 123]
+          REQUIRED_COLUMNS.forEach(col => {
+            if (!row[col]?.toString().trim()) {
+              newErrors.push({ row: firstRowIndex, column: col, message: `${col} 필수!` });
+            }
+          });
 
-        REQUIRED_COLUMNS.forEach(col => {
-          const value = row[col]?.toString().trim();
-          if (!value) {
-            newErrors.push({ row: rowIndex, column: col, message: `${col}은(는) 필수 입력 항목입니다.` });
+          // 차량 매핑
+          let mappedCenterCode = '004001';
+          const vehicleName = row['차량']?.toString().trim();
+          if (vehicleName === '제일인테크(경남)' || vehicleName === '제일인테크(경북)') {
+            mappedCenterCode = '004002';
+          } else if (vehicleName && vehicleCodeMap.has(vehicleName)) {
+            mappedCenterCode = vehicleCodeMap.get(vehicleName);
+          }
+
+          // 주소 좌표 추출 (카카오 API) 
+          let cust_lat = null, cust_lng = null;
+          if (row['주소1']?.trim()) {
+            const coords = await getCoordinates(row['주소1']);
+            cust_lat = coords.lat;
+            cust_lng = coords.lng;
+            if (!cust_lat || !cust_lng) {
+              newErrors.push({ row: firstRowIndex, column: '주소1', message: `좌표 오류` });
+            }
+          }
+
+          updatedData.forEach((item, idx) => {
+          if (item['수주번호'] === orderNo) {
+            updatedData[idx].cust_devcenter = mappedCenterCode;
+            updatedData[idx].cust_lat = cust_lat;
+            updatedData[idx].cust_lng = cust_lng;
+            
+            // 대표 행 이외의 행들에 대해서도 필수값 에러가 있다면 추가 (선택 사항)
+            // 여기서는 수주번호가 같으면 주소/날짜가 같다고 가정하므로 생략 가능
           }
         });
 
-        const vehicleName = row['차량']?.toString().trim();
-        let mappedCenterCode = '004001'; 
-        if (vehicleName && vehicleCodeMap.has(vehicleName)) {
-          mappedCenterCode = vehicleCodeMap.get(vehicleName);
-        }
+        }));
         
-        updatedData[rowIndex] = { ...updatedData[rowIndex], cust_devcenter: mappedCenterCode };
-
-        if (row['주소1'] && row['주소1'].trim() !== '') {
-          const coords = await getCoordinates(row['주소1']);
-          if (coords.lat && coords.lng) {
-            updatedData[rowIndex] = { ...updatedData[rowIndex], cust_lat: coords.lat, cust_lng: coords.lng };
-          } else {
-            newErrors.push({ row: rowIndex, column: '주소1', message: `좌표를 찾을 수 없는 주소입니다.` });
-            updatedData[rowIndex] = { ...updatedData[rowIndex], cust_lat: null, cust_lng: null };
-          }
-        }
+        // 처리 중임을 알리기 위해 로딩 텍스트 업데이트
+        setLoadingText(`${i + batch.length}건 검증 중...`);
       }
 
+      // 3. 상태 업데이트
       setPreviewData(updatedData);
       setErrors(newErrors);
-      setIsValidated(true);
+      setRegCnt(prev => prev + 1);// 검증 실행 횟수 증가
+      setRefixCnt(newErrors.length); // 남은 에러 개수 설정
+      setIsValidated(newErrors.length === 0);
       
       if (newErrors.length === 0) {
-        alert('데이터 검증 완료: 차량 매핑 및 모든 항목이 정상입니다.');
+        alert('데이터 검증 완료: 데이터를 저장 해주세요');
       } else {
         alert(`검증 결과: ${newErrors.length}건의 오류가 발견되었습니다.`);
       }
@@ -268,14 +286,29 @@ export default function ExcelUploadPage() {
     setPreviewData(newData);
     if (isValidated) setIsValidated(false);
 
+    // 에러 상태 및 refixCnt 관리
     if (errors.length > 0) {
-      setErrors(prev => prev.filter(err => {
-        const isSameColumn = err.column === column;
-        const isTargetRow = targetOrderNumber ? newData[err.row]?.['수주번호'] === targetOrderNumber : err.row === rowIndex;
-        return !(isSameColumn && isTargetRow);
-      }));
+      const wasError = errors.some(err => err.row === rowIndex && err.column === column);// 기존에 에러였는지 확인 [cite: 63]
+      
+      const remainingErrors = errors.filter(err => {
+        const isTarget = targetOrderNumber ? newData[err.row]?.['수주번호'] === targetOrderNumber : err.row === rowIndex;
+        return !(err.column === column && isTarget);
+      });
+
+      if (wasError && remainingErrors.length < errors.length) {
+        // 에러가 해결되었다면 카운트 감소
+        setRefixCnt(prev => Math.max(0, prev - (errors.length - remainingErrors.length)));
+      }
+      setErrors(remainingErrors);
     }
-  };
+
+    // 모든 에러가 사라지면 검증 완료 상태로 전환
+    if (refixCnt === 0 || errors.length === 0) {
+      setIsValidated(true);
+    } else {
+      setIsValidated(false);
+    }
+  }; // handleCellChange
 
   const scrollToError = (rowIndex: number) => {
     if (tableContainerRef.current) {
@@ -304,11 +337,15 @@ export default function ExcelUploadPage() {
   };
 
   const handleSaveToDB = async () => {
-    if (!isValidated || errors.length > 0 || !userId) {
+    console.log("=== 저장 프로세스 시작 ===");
+    console.log("1. 현재 로그인 된 유저 ID (userId):", userId);
+    console.log("2. 검증 완료 여부 (isValidated):", isValidated);
+    console.log("3. 발견된 에러 개수 (errors.length):", errors.length);
+    if (errors.length > 0) {
       alert("검증 완료 후 진행해 주세요.");
       return;
     }
-    if (!window.confirm("검증된 데이터를 저장하시겠습니까?")) return;
+    if (!window.confirm("데이터를 저장하시겠습니까?")) return;
     
     setLoading(true);
     setLoadingText('데이터베이스에 저장 중...');
@@ -324,6 +361,51 @@ export default function ExcelUploadPage() {
       alert(error.message || '업로드 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 전체 선택/해제 핸들러
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedRows(new Set(previewData.keys()));
+    } else {
+      setSelectedRows(new Set());
+    }
+  };
+
+  // 개별 선택 핸들러
+  const handleSelectRow = (index: number) => {
+    const newSelected = new Set(selectedRows);
+    if (newSelected.has(index)) {
+      newSelected.delete(index);
+    } else {
+      newSelected.add(index);
+    }
+    setSelectedRows(newSelected);
+  };
+
+  const handleDeleteSelected = () => {
+    const selectedIndices = Array.from(selectedRows);
+    const selectedOrderNos = new Set(selectedIndices.map(idx => previewData[idx]['수주번호']));
+    
+    // 예외 처리: 체크되지 않은 행들 중, 체크된 수주번호와 동일한 수주번호가 있는지 확인
+    const hasIncompleteOrder = previewData.some((row, idx) => {
+      return !selectedRows.has(idx) && selectedOrderNos.has(row['수주번호']);
+    });
+
+    if (hasIncompleteOrder) {
+      alert("동일한 수주번호를 가진 데이터는 함께 삭제해야 합니다. 모든 항목을 체크해 주세요.");
+      return;
+    }
+
+    if (window.confirm(`${selectedRows.size}건의 데이터를 삭제하시겠습니까?`)) {
+      const newData = previewData.filter((_, idx) => !selectedRows.has(idx));
+      setPreviewData(newData);
+      setSelectedRows(new Set());
+      // 삭제 후 검증 상태 초기화 (데이터가 바뀌었으므로 재검증 유도)
+      setRegCnt(0);
+      setRefixCnt(0);
+      setIsValidated(false); 
     }
   };
 
@@ -348,13 +430,28 @@ export default function ExcelUploadPage() {
         </div>
         
         <div className="flex items-center gap-3">
+          {/* 선택된 항목이 있을 때만 활성화되는 삭제 버튼 */}
+          <button 
+            onClick={handleDeleteSelected}
+            disabled={selectedRows.size === 0 || loading}
+            className="px-4 py-2 rounded-md font-bold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
+          >
+            선택 삭제 ({selectedRows.size})
+          </button>
           {previewData.length > 0 && (
             <button onClick={handleClear} className="px-4 py-2 rounded-md font-bold text-slate-500 hover:text-red-500 border border-slate-200 bg-white shadow-sm transition">초기화</button>
           )}
           <button onClick={handleValidate} disabled={previewData.length === 0 || loading} className="px-6 py-2 rounded-md font-bold transition border bg-white text-blue-600 border-blue-600 hover:bg-blue-50 disabled:text-slate-300 disabled:border-slate-200">
             데이터 검증 {previewData.length > 0 && `(${previewData.length}건)`}
           </button>
-          <button onClick={handleSaveToDB} disabled={previewData.length === 0 || loading || !isValidated || errors.length > 0} className="px-8 py-2 rounded-md font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 shadow-sm transition">
+          <button onClick={handleSaveToDB} 
+                  disabled={
+                    previewData.length === 0 || 
+                    loading || 
+                    regCnt === 0 || // 최소 1회 검증 필수
+                    refixCnt > 0    // 남은 에러가 없어야 함
+                  } 
+                  className="px-8 py-2 rounded-md font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 shadow-sm transition">
             {loading ? '처리 중...' : '데이터 저장하기'}
           </button>
         </div>
@@ -368,9 +465,17 @@ export default function ExcelUploadPage() {
                 <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-20">
                   <tr className={ROW_HEIGHT_CLASS}>
                     {headers.map((header) => (
-                      <th key={header} style={columnWidths[header] ? { width: `${columnWidths[header]}px` } : {}} className={`relative px-4 font-semibold text-slate-700 bg-slate-100 align-middle border-r border-slate-200 last:border-r-0 ${header === 'No.' ? 'sticky left-0 z-40 w-16 text-center border-r-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}`}>
-                        <div className="truncate" style={!columnWidths[header] && header !== 'No.' ? { maxWidth: '300px' } : {}}>{header}</div>
-                        {header !== 'No.' && (
+                      <th 
+                        key={header} 
+                        style={columnWidths[header] ? { width: `${columnWidths[header]}px` } : {}} 
+                        className={`relative px-4 font-semibold text-slate-700 bg-slate-100 align-middle border-r border-slate-200 last:border-r-0 
+                          ${header === 'No.' ? 'sticky left-0 z-40 w-16 text-center border-r-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}
+                          ${header === '선택' ? 'sticky left-16 z-40 w-16 text-center border-r-2 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]' : ''}
+                        `}
+                      >
+                        <div className="truncate">{header}</div>
+                        {/* 'No.'와 '선택' 컬럼이 아니면 리사이즈 핸들 표시 */}
+                        {header !== 'No.' && header !== '선택' && (
                           <div onMouseDown={(e) => handleMouseDown(header, e)} className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-blue-400 transition-colors" />
                         )}
                       </th>
@@ -380,26 +485,46 @@ export default function ExcelUploadPage() {
                 <tbody className="divide-y divide-slate-100">
                   {previewData.map((row, index) => {
                     const hasErrorInRow = errorRowIndices.has(index);
+                    const isSelected = selectedRows.has(index);
                     return (
                       <tr key={index} className={`${ROW_HEIGHT_CLASS} hover:bg-slate-50 transition`}>
                         {headers.map((header) => {
+                          // 1. No. 컬럼 (순번)
                           if (header === 'No.') {
-                            return <td key={header} className={`sticky left-0 z-10 px-4 text-center font-bold border-r-2 transition-colors ${hasErrorInRow ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-400 border-slate-200'}`}>{index + 1}</td>;
+                            return (
+                              <td key={header} className={`sticky left-0 z-10 px-4 text-center font-bold border-r-2 transition-colors ${hasErrorInRow ? 'bg-red-500 text-white border-red-600' : 'bg-white text-slate-400 border-slate-200'}`}>
+                                {index + 1}
+                              </td>
+                            );
+                          }
+
+                          // 2. 선택 컬럼 (체크박스) ✅ 이 부분을 명시적으로 추가합니다.
+                          if (header === '선택') {
+                            return (
+                              <td key={header} className={`sticky left-16 z-10 w-16 text-center border-r-2 transition-colors ${isSelected ? 'bg-blue-50' : 'bg-white'} border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]`}>
+                                <input 
+                                  type="checkbox" 
+                                  checked={isSelected}
+                                  onChange={() => handleSelectRow(index)}
+                                  className="w-4 h-4 cursor-pointer"
+                                />
+                              </td>
+                            );
                           }
                           const cellError = getCellError(index, header);
                           const isEditable = EDITABLE_COLUMNS.includes(header);
                           const isAddress1 = header === '주소1';
                           return (
-                            <td key={header} title={cellError?.message} className={`align-middle border-r border-slate-100 last:border-r-0 transition-colors p-0 ${cellError ? 'bg-red-50 text-red-600 font-bold' : 'text-slate-600'}`}>
+                            <td key={header} className={`align-middle border-r border-slate-100 last:border-r-0 transition-colors p-0 ${cellError ? 'bg-red-50 text-red-600 font-bold' : 'text-slate-600'}`}>
                               {isEditable ? (
                                 <input 
                                   type="text" 
                                   readOnly={isAddress1}
                                   value={row[header] || ''} 
                                   onClick={() => isAddress1 && openPostcode(index)}
-                                  onFocus={(e) => !isAddress1 && e.target.select()}
+                                  onFocus={(e) => !isAddress1 && e.target.select()} // 선택된 데이터 전체선택
                                   onChange={(e) => !isAddress1 && handleCellChange(index, header, e.target.value)} 
-                                  className={`w-full h-11 px-4 outline-none focus:ring-2 focus:ring-blue-400 transition-all bg-transparent focus:bg-white ${isAddress1 ? 'cursor-pointer hover:bg-blue-50' : ''}`} 
+                                  className={`w-full h-11 px-4 outline-none focus:ring-2 focus:ring-blue-400 transition-all bg-transparent focus:bg-white ${isAddress1 ? 'cursor-pointer hover:bg-blue-50' : ''}`}  
                                   placeholder={isAddress1 ? "주소 검색" : ""}
                                 />
                               ) : (
@@ -415,7 +540,7 @@ export default function ExcelUploadPage() {
               </table>
             </div>
             
-            {/* ✅ 다시 추가된 우측 에러 표시바 (미니맵) */}
+            {/* 우측 에러 표시바 (미니맵) */}
             {errors.length > 0 && (
               <div className="w-4 bg-slate-100 rounded border border-slate-200 relative overflow-hidden shadow-inner shrink-0" style={{ height: 'calc(100vh - 200px)' }}>
                 {errorRowsArray.map((rowIndex) => (

@@ -360,7 +360,7 @@ export default function DeliveryEditTablePage() {
         
         {/* 상단 필터 및 액션 영역 */}
         <div className="flex flex-wrap items-center justify-between mb-3 gap-3 shrink-0 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-3 shrink-0">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
             {/* 배송상태 필터 */}
             <div className="flex items-center gap-1.5">
               <span className="text-[12px] font-black text-slate-400 uppercase">배송상태</span>
@@ -485,7 +485,7 @@ export default function DeliveryEditTablePage() {
         </div>
 
         {/* 메인 테이블 컨테이너 */}
-        <div className="bg-white rounded-b-xl shadow-xl border border-slate-200 flex-1 min-h-0 text-slate-700 overflow-hidden flex flex-col mb-4">
+        <div className="bg-white rounded-b-xl shadow-xl border border-slate-200 flex-1 min-h-0 text-slate-700 overflow-hidden flex flex-col mb-10">
           <div 
             ref={mainScrollRef} 
             onScroll={onMainScroll}

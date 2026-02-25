@@ -20,4 +20,5 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
       </main>
     </>
   );
+
 }

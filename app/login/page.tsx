@@ -100,16 +100,69 @@ export default function LoginPage() {
     }
   };
 
+  // 🌟 비밀번호 재설정 관련 상태
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [resetStep, setResetStep] = useState(1); // 1: 발송전, 2: OTP인증, 3: 비번변경
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  // 🌟 비밀번호 재설정 처리 함수
   const handleResetPassword = async () => {
     if (!email) {
-      alert("이메일을 먼저 입력해 주세요. 해당 이메일로 재설정 링크를 보내드립니다.");
+      alert("이메일을 입력해 주세요. 해당 이메일로 인증번호를 보내드립니다.");
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/reset-password`,
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+
+    if (error) {
+      alert("오류: " + error.message);
+    } else {
+      alert("입력하신 이메일로 6자리 인증번호가 발송되었습니다.");
+      setResetStep(2); // 💡 웹에서도 인증번호 입력 칸을 보여주기 위한 상태 변경
+      setIsPasswordModalOpen(true);
+    }
+  };
+  // 🌟 인증번호 검증 처리 함수
+  const [otp, setOtp] = useState("");
+  const handleVerifyOtp = async () => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: email.trim(),
+      token: otp,
+      type: 'recovery', // 💡 앱과 동일하게 recovery 타입을 사용합니다.
     });
-    if (error) alert("오류: " + error.message);
-    else alert("비밀번호 재설정 이메일이 발송되었습니다!");
+
+    if (error) {
+      alert("인증번호가 일치하지 않습니다: " + error.message);
+    } else if (data.session) {
+      alert("인증 성공! 이제 새 비밀번호를 입력해 주세요.");
+      setResetStep(3); // 💡 비밀번호 변경 입력 칸으로 이동
+    }
+  };
+  // 🌟 새 비밀번호 입력 및 업데이트 처리 함수
+  const [newPassword, setNewPassword] = useState("");
+  const handleUpdatePassword = async () => {
+
+    // 💡 일치 여부 체크 추가
+    if (newPassword !== confirmPassword) {
+      alert("비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      alert("변경 실패: " + error.message);
+    } else {
+      alert("비밀번호가 성공적으로 변경되었습니다.");
+      setIsPasswordModalOpen(false);
+      setResetStep(1);
+      setOtp("");
+      setNewPassword("");
+      setConfirmPassword("");
+      // router.push("/login"); // 로그인 페이지로 이동
+    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -145,7 +198,11 @@ export default function LoginPage() {
           if (response.ok) {
             const fetchedData = await response.json();
             console.log("📝 [Front] 서버에서 받은 유저 데이터:", fetchedData);
-            if (fetchedData) userData = fetchedData;
+            // if (fetchedData) userData = fetchedData;
+            userData = {
+              ...fetchedData,
+              user_role: fetchedData.user_role || fetchedData.role 
+            };
           }
         } catch (fetchErr) {
           console.error("❌ [Error] 백엔드 서버 연결 실패:", fetchErr);
@@ -178,17 +235,29 @@ export default function LoginPage() {
 
         // 4. 로컬 데이터 저장
         localStorage.setItem('last_logged_in_email', email.trim());
-        localStorage.setItem('driver_email', email.trim());
-        localStorage.setItem('driver_name', userData.user_name || '');
+        localStorage.setItem('user_email', email.trim()); // driver_email로 키 이름 변경
+        localStorage.setItem('user_name', userData.user_name || ''); // driver_name로 키 이름 변경
         localStorage.setItem('user_id', userData.user_id || '');
         localStorage.setItem('user_role', userData.user_role);
         localStorage.setItem('user_center', userData.user_center || '');
         localStorage.setItem('remembered_email', email.trim());
-        localStorage.setItem('is_logged_in', 'true');
+        // localStorage.setItem('is_logged_in', 'true');
         // 사용자별 개별 메뉴 권한 조회를 위해 UUID 저장
-        localStorage.setItem('user_uuid', authData.user.id);
+        // localStorage.setItem('user_uuid', authData.user.id);
 
+        sessionStorage.setItem('user_id', userData.user_id || '');
+        sessionStorage.setItem('user_role', userData.user_role);
+        sessionStorage.setItem('user_center', userData.user_center || '');
+        sessionStorage.setItem('is_logged_in', 'true');
+        sessionStorage.setItem('user_uuid', authData.user.id);
+        
+        /*
         if (authData?.session) {
+          const { access_token, refresh_token } = authData.session;
+          const PROJECT_ID = 'zomgwapjremdlsyevhem';
+          document.cookie = `sb-${PROJECT_ID}-auth-token=${access_token}; path=/; SameSite=Lax;`;
+          // document.cookie = `sb-access-token=${access_token}; path=/; SameSite=Lax;`;
+          document.cookie = `sb-refresh-token=${refresh_token}; path=/; SameSite=Lax;`;
           // 1. 아이디(이메일)는 창을 닫아도 기억해야 하므로 LocalStorage에 저장
           localStorage.setItem('saved_email', email); 
           
@@ -203,6 +272,12 @@ export default function LoginPage() {
           // setTimeout(() => {
           //   window.location.href = '/delivery';
           // }, 100);
+        }
+        */
+
+        if (authData?.session) {
+          alert(`${userData.user_name}님, 환영합니다!`);
+          window.location.replace('/delivery');
         }
         setLoading(false);
       }
@@ -335,6 +410,83 @@ export default function LoginPage() {
                 className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black hover:bg-blue-700 shadow-lg transition-all"
               >
                 아이디 확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 비밀번호 재설정 모달 UI */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white p-8 rounded-[2rem] w-full max-w-md shadow-2xl transition-all duration-300">
+            <h2 className="text-2xl font-black text-slate-800 mb-2">비밀번호 재설정</h2>
+            <p className="text-sm text-slate-500 mb-6 font-medium">
+              {resetStep === 2 
+                ? "이메일로 전송된 인증번호 6자리를 입력해주세요." 
+                : "새로운 비밀번호를 입력해주세요."}
+            </p>
+            
+            <div className="space-y-4">
+              {/* 2단계: OTP 입력창 (6칸 또는 단일창 선택 가능하지만, 스타일 통일을 위해 단일창 구성) */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="인증번호 6자리"
+                  value={otp}
+                  maxLength={6}
+                  disabled={resetStep > 2}
+                  className={`w-full p-4 rounded-xl font-bold outline-none border transition-all text-center text-2xl tracking-[0.5em] 
+                    ${resetStep > 2 
+                      ? "bg-slate-100 border-slate-200 text-slate-400" 
+                      : "bg-slate-50 border-slate-200 text-slate-900 focus:ring-2 focus:ring-blue-500"}`}
+                  onChange={(e) => setOtp(e.target.value)}
+                />
+              </div>
+
+              {/* 3단계: 비밀번호 입력 섹션 (step이 3일 때만 애니메이션과 함께 등장) */}
+              {resetStep === 3 && (
+                <div className="space-y-4 pt-4 border-t border-slate-100 animate-in slide-in-from-top-4 duration-500">
+                  <div className="space-y-2">
+                    <input
+                      type="password"
+                      placeholder="새 비밀번호 (6자리 이상 숫자+영문)"
+                      value={newPassword}
+                      className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400"
+                      onChange={(e) => setNewPassword(e.target.value)}
+                    />
+                    <input
+                      type="password"
+                      placeholder="비밀번호 확인"
+                      value={confirmPassword}
+                      className={`w-full p-4 bg-slate-50 border rounded-xl font-bold outline-none transition-all text-slate-900 placeholder:text-slate-400
+                        ${confirmPassword === "" 
+                          ? "border-slate-200 focus:ring-2 focus:ring-blue-500" 
+                          : newPassword === confirmPassword 
+                            ? "border-green-500 ring-2 ring-green-500/20" 
+                            : "border-red-500 ring-2 ring-red-500/20"}`}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-8">
+              <button 
+                onClick={() => {
+                  setIsPasswordModalOpen(false);
+                  setResetStep(2); // 모달 닫을 때 스텝 초기화
+                }}
+                className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-xl font-black hover:bg-slate-200 transition-all"
+              >
+                {resetStep === 3 ? "취소" : "닫기"}
+              </button>
+              <button 
+                onClick={resetStep === 2 ? handleVerifyOtp : handleUpdatePassword}
+                className="flex-1 py-4 bg-blue-600 text-white rounded-xl font-black hover:bg-blue-700 shadow-lg transition-all"
+              >
+                {resetStep === 2 ? "인증 확인" : "비밀번호 변경"}
               </button>
             </div>
           </div>

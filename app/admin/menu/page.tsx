@@ -1,20 +1,98 @@
 'use client';
-
+// 메뉴등록
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useRouter } from 'next/navigation';
 
 export default function MenuAdminPage() {
+  const router = useRouter();
+  const { user, role, isLoggedIn } = useAuthStore();
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [menus, setMenus] = useState<any[]>([]);
   const [selectedMenu, setSelectedMenu] = useState<any>(null);
   const [roles, setRoles] = useState<any[]>([]);
   const [authorizedRoles, setAuthorizedRoles] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<'ROLE' | 'USER'>('ROLE'); // 탭 상태
-  const [allUsers, setAllUsers] = useState<any[]>([]); // 전체 사용자 리스트
-  const [userSearch, setUserSearch] = useState(''); // 사용자 검색어
-  const [authorizedUsers, setAuthorizedUsers] = useState<string[]>([]); // 이 메뉴 권한을 가진 사용자 UUID들
+  const [activeTab, setActiveTab] = useState<'ROLE' | 'USER'>('ROLE');
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [authorizedUsers, setAuthorizedUsers] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchKeyword, setSearchKeyword] = useState(''); // 검색어 입력값
-  const [searchResults, setSearchResults] = useState<any[]>([]); // 검색 결과 리스트
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isAdding, setIsAdding] = useState(false);
+  const [newMenu, setNewMenu] = useState({ menu_name: '', menu_path: '', menu_sort: 0, is_use: true });
+  const [userSearch, setUserSearch] = useState('');
+
+    const fetchInitialData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data: menuData } = await supabase.from('ks_menu').select('*').order('menu_sort', { ascending: true });
+      const { data: roleData } = await supabase.from('ks_common').select('comm_ccode, comm_text1').eq('comm_mcode', '001').eq('comm_use', true).order('comm_sort');
+      const { data: userData } = await supabase.from('ks_users').select('user_uuid, user_name, user_email');
+
+      if (menuData) {
+          setMenus(menuData);
+          setNewMenu(prev => ({ ...prev, menu_sort: menuData.length + 1 }));
+      }
+      if (roleData) {
+          setRoles([
+            { comm_ccode: 'ALL', comm_text1: '★ 전체 공통 메뉴' }, 
+            ...roleData
+          ]);
+      }
+      if (userData) setAllUsers(userData);
+    } catch (error) {
+      console.error("초기 데이터 로드 에러:", error);
+    } finally {
+      // 🚀 이 부분이 추가되어야 '처리 중' 상태가 풀립니다.
+      setLoading(false);
+    }
+  }, []);
+
+  // 인증 체크 로직 추가
+  useEffect(() => {
+
+    const checkAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        // const isLoggedIn = localStorage.getItem('is_logged_in');
+        if (isLoggedIn === undefined) return;
+
+        // 세션이 없거나 로그인 상태가 아니면 튕김
+        // if (!session || isLoggedIn !== 'true') {
+        //   window.location.href = '/login';
+        //   return;
+        // }
+
+        // 관리자 전용 메뉴라면 여기서 권한 체크
+        if (role !== '001001') {
+          alert('관리자 권한이 없습니다.');
+          router.replace('/delivery'); // 일반 사용자는 배송관리로 보냄
+          return;
+        }
+        
+        setIsAuthLoading(false); // 인증 통과 시 로딩 해제
+      } catch (err) {
+        window.location.href = '/login';
+      }
+    };
+
+    checkAuth();
+  }, [isLoggedIn, role, router]);
+
+  useEffect(() => {
+    // 1. 인증 로딩이 끝났고(false)
+    // 2. 실제로 로그인된 상태이며
+    // 3. 권한이 관리자('001001')일 때만 데이터를 호출
+    if (!isAuthLoading && isLoggedIn && role === '001001') {
+      console.log("📦 [MenuAdmin] 인증 확인 완료. 데이터를 불러옵니다.");
+      fetchInitialData();
+    }
+  }, [isAuthLoading, isLoggedIn, role, fetchInitialData]);
+
+  // if (isAuthLoading) {
+  //   return <div className="p-6">권한 확인 중...</div>;
+  // }
 
   // 사용자 검색 함수 (이름, 이메일, 연락처 통합 검색)
   const handleUserSearch = async () => {
@@ -44,36 +122,6 @@ export default function MenuAdminPage() {
     }
   };
 
-  // --- 신규 메뉴 입력을 위한 상태 ---
-  const [isAdding, setIsAdding] = useState(false);
-  const [newMenu, setNewMenu] = useState({ menu_name: '', menu_path: '', menu_sort: 0, is_use: true });
-
-  const fetchInitialData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data: menuData } = await supabase.from('ks_menu').select('*').order('menu_sort', { ascending: true });
-      const { data: roleData } = await supabase.from('ks_common').select('comm_ccode, comm_text1').eq('comm_mcode', '001').eq('comm_use', true).order('comm_sort');
-      const { data: userData } = await supabase.from('ks_users').select('user_uuid, user_name, user_email').eq('user_usegbn', true);
-
-      if (menuData) {
-          setMenus(menuData);
-          setNewMenu(prev => ({ ...prev, menu_sort: menuData.length + 1 }));
-      }
-      if (roleData) {
-          setRoles([
-            { comm_ccode: 'ALL', comm_text1: '★ 전체 공통 메뉴' }, 
-            ...roleData
-          ]);
-      }
-      if (userData) setAllUsers(userData);
-    } catch (error) {
-      console.error("초기 데이터 로드 에러:", error);
-    } finally {
-      // 🚀 이 부분이 추가되어야 '처리 중' 상태가 풀립니다.
-      setLoading(false);
-    }
-  }, []);
-
   // 메뉴 리스트 내의 필드 값을 변경하는 함수
     const handleMenuFieldChange = (index: number, field: string, value: any) => {
       const updatedMenus = [...menus];
@@ -81,45 +129,61 @@ export default function MenuAdminPage() {
       setMenus(updatedMenus);
     };
 
-  useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
-
   // 메뉴 선택 시 권한 로드 (그룹 & 사용자)
   useEffect(() => {
     const fetchAuthData = async () => {
       if (!selectedMenu) {
+        console.log("ℹ️ [메뉴 선택] 선택된 메뉴가 없습니다.");//
         setAuthorizedRoles([]);
         setAuthorizedUsers([]);
         setSearchResults([]);
         return;
       }
+
+      setLoading(true); // 로딩 시작 로그
       
-      // 1. 그룹 권한 로드
-      const { data: rData } = await supabase.from('ks_menu_auth').select('role_code').eq('menu_id', selectedMenu.menu_id);
-      if (rData) setAuthorizedRoles(rData.map(item => item.role_code));
+      try {
+        // 1. 그룹 권한 로드
+        const { data: rData, error: rError } = await supabase.from('ks_menu_auth').select('role_code').eq('menu_id', selectedMenu.menu_id);
 
-      // [중요: 현재 개별 권한이 있는 사용자 정보 로드]
-      // ks_menu_user와 ks_users를 조인하여 정보를 가져옵니다.
-        const { data: uAuthData, error } = await supabase
-        .from('ks_menu_user')
-        .select(`
-          user_id,
-          ks_users!inner (
-            user_uuid,
-            user_name,
-            user_email,
-            user_hpno
-          )
-        `)
-        .eq('menu_id', selectedMenu.menu_id);
+        if (rError) console.error("❌ 그룹 권한 조회 에러:", rError.message);//
+        else console.log("✅ 조회된 그룹 권한(Role):", rData?.map(r => r.role_code));//
 
-      if (uAuthData) {
-        // 1. 체크박스 상태 업데이트용 UUID 배열
-        const uuids = uAuthData.map((item: any) => item.user_id);
-        setAuthorizedUsers(uuids);
+        if (rData) setAuthorizedRoles(rData.map(item => item.role_code));
 
-        // 2. 검색 결과창에 현재 권한자들을 먼저 표시 (ks_users 정보만 추출)
-        const existingUsers = uAuthData.map((item: any) => item.ks_users).filter(Boolean);
-        setSearchResults(existingUsers);
+        // [중요: 현재 개별 권한이 있는 사용자 정보 로드]
+        // ks_menu_user와 ks_users를 조인하여 정보를 가져옵니다.
+          const { data: uAuthData, error: uError } = await supabase
+          .from('ks_menu_user')
+          .select(`
+            user_id,
+            ks_users!inner (
+              user_uuid,
+              user_name,
+              user_email,
+              user_hpno
+            )
+          `)
+          .eq('menu_id', selectedMenu.menu_id);
+
+        if (uError) console.error("❌ 사용자 권한 조회 에러:", uError.message);//
+        else console.log("✅ 조회된 개별 권한자 수:", uAuthData?.length, "명"); // 
+
+        if (uAuthData) {
+          // 1. 체크박스 상태 업데이트용 UUID 배열
+          const uuids = uAuthData.map((item: any) => item.user_id);
+          setAuthorizedUsers(uuids);
+
+          // 2. 검색 결과창에 현재 권한자들을 먼저 표시 (ks_users 정보만 추출)
+          const existingUsers = uAuthData.map((item: any) => item.ks_users).filter(Boolean);
+          setSearchResults(existingUsers);
+        }
+      } catch (err: any) {
+        console.error("❌ 권한 로드 중 오류 발생:", err.message);
+        alert('권한 정보를 불러오는 중 오류가 발생했습니다.');
+      } finally {
+        // 🚀 성공/실패 여부와 상관없이 '처리 중...' 상태를 해제합니다. [cite: 19, 32]
+        setLoading(false);
       }
     };
 
@@ -149,15 +213,15 @@ export default function MenuAdminPage() {
     }
   };
 
-  // 메뉴 선택 시 권한 로드
-  useEffect(() => {
-    const fetchMenuAuth = async () => {
-      if (!selectedMenu) { setAuthorizedRoles([]); return; }
-      const { data } = await supabase.from('ks_menu_auth').select('role_code').eq('menu_id', selectedMenu.menu_id);
-      if (data) setAuthorizedRoles(data.map(item => item.role_code));
-    };
-    fetchMenuAuth();
-  }, [selectedMenu]);
+  // 메뉴 선택 시 권한 로드(중복으로 삭제처리)
+  // useEffect(() => {
+  //   const fetchMenuAuth = async () => {
+  //     if (!selectedMenu) { setAuthorizedRoles([]); return; }
+  //     const { data } = await supabase.from('ks_menu_auth').select('role_code').eq('menu_id', selectedMenu.menu_id);
+  //     if (data) setAuthorizedRoles(data.map(item => item.role_code));
+  //   };
+  //   fetchMenuAuth();
+  // }, [selectedMenu]);
 
   // --- 신규 메뉴 저장 함수 ---
   const handleSaveNewMenu = async () => {
@@ -244,7 +308,7 @@ export default function MenuAdminPage() {
                       <td className="p-2"><input type="text" className={inputStyle} value={newMenu.menu_name} onChange={e => setNewMenu({...newMenu, menu_name: e.target.value})}/></td>
                       <td className="p-2"><input type="text" className={inputStyle} value={newMenu.menu_path} onChange={e => setNewMenu({...newMenu, menu_path: e.target.value})}/></td>
                       <td className="p-2 text-center"><input type="checkbox" checked={newMenu.is_use} onChange={e => setNewMenu({...newMenu, is_use: e.target.checked})}/></td>
-                      <td className="p-2"><button onClick={() => {/* handleSaveNewMenu 호출 */}} className="w-full bg-slate-800 text-white py-1 rounded text-[10px] font-bold">저장</button></td>
+                      <td className="p-2"><button onClick={handleSaveNewMenu} className="w-full bg-slate-800 text-white py-1 rounded text-[10px] font-bold">저장</button></td>
                     </tr>
                   )}
 
