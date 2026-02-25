@@ -176,7 +176,7 @@ export default function SignUpPage() {
             user_id: userId.trim(),
             user_name: userName.trim(),
             user_hpno: userHpno.trim(),
-            user_role: 'user', 
+            user_role: '001003',  // user 권한
             user_center: selectedCenter 
           }
         }
