@@ -105,7 +105,7 @@ export default function DashboardPage() {
         const savedRole = localStorage.getItem('user_role');
         const isLoggedIn = localStorage.getItem('is_logged_in');
 
-        console.log("📍 [Page Step 2] 로컬 정보:", { savedEmail, savedRole, isLoggedIn });
+        // console.log("📍 [Page Step 2] 로컬 정보:", { savedEmail, savedRole, isLoggedIn });
         if (
           !savedEmail || !savedRole
         ) {

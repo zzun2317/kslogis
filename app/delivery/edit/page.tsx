@@ -8,7 +8,8 @@ import { useAuth } from '@/hook/useAuth';
 export default function DeliveryEditTablePage() {
   // 1. 커스텀 훅을 통한 권한 정보 추출
   const { user, isLocalManager, userCenterList, canEdit, isDriver, isMaster } = useAuth();
-  const COMPLETE_STATUS = '002003';
+  const COMPLETE_STATUS = '002003'; // 배송완료 상태 코드
+  
   const isRowEditable = (item: any) => {
     if (!canEdit) return false; // 기본 권한 없으면 차단 [cite: 43]
     if (isMaster) return true;  // 슈퍼관리자(001001), 관리자(001002)는 무조건 허용
@@ -29,7 +30,11 @@ export default function DeliveryEditTablePage() {
   }
 
   // --- 조회 조건 상태 관리 ---
-  const [searchDate, setSearchDate] = useState(''); 
+  // const [searchDate, setSearchDate] = useState(''); 
+  const today = new Date().toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState(today); // 시작일
+  const [endDate, setEndDate] = useState(today);     // 종료일
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false); // 달력 모달 제어
   const [reqDate, setReqDate] = useState('');       
   const [gubun, setGubun] = useState('전체');        
   const [searchDevcenter, setSearchDevcenter] = useState('전체'); 
@@ -43,6 +48,7 @@ export default function DeliveryEditTablePage() {
   const [originalData, setOriginalData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [isDataLimitReached, setIsDataLimitReached] = useState(false); // 1000건 이상 조회 시 경고 메시지 표시 여부
   
   // --- 목록 및 마스터 데이터 관리 ---
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
@@ -130,7 +136,7 @@ export default function DeliveryEditTablePage() {
   // --- 공통 코드 및 초기 세팅 로드 ---
   useEffect(() => {
     const today = new Date();
-    setSearchDate(today.toISOString().split('T')[0]);
+    // setSearchDate(today.toISOString().split('T')[0]);
     
     const fetchCommonData = async () => {
       // 기사 목록 로드
@@ -150,7 +156,7 @@ export default function DeliveryEditTablePage() {
     if (mainScrollRef.current) mainScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-// --- 배송 데이터 조회 (RPC 호출) ---
+  // --- 배송 데이터 조회 (RPC 호출) ---
   const fetchDeliveryData = useCallback(async () => {
     // 1. 권한 정보가 로드될 때까지 대기 (방어 로직)
     if (!user?.user_role || !userCenterList) {
@@ -159,10 +165,13 @@ export default function DeliveryEditTablePage() {
     }
 
     setLoading(true);
+    setIsDataLimitReached(false);
 
     // 2. 전달할 파라미터 정리
     const rpcParams = {
-      p_devdate: searchDate.trim(),
+      // p_devdate: searchDate.trim(),
+      p_start_date: startDate,
+      p_end_date: endDate,
       p_reqdate: reqDate.trim() || '%',
       p_gubun: gubun === '전체' ? '%' : gubun,
       p_name: custName.trim() ? `%${custName.trim()}%` : '%',
@@ -182,6 +191,11 @@ export default function DeliveryEditTablePage() {
       const { data, error } = await supabase.rpc('get_delivery_edit_list', rpcParams);
 
       if (error) throw error;
+
+      // [추가] 조회된 데이터가 1000건 이상이면 알림 활성화
+      if (data && data.length >= 1000) {
+        setIsDataLimitReached(true);
+      }
       
       const initializedData = (data || []).map((item: any) => ({
         ...item, 
@@ -203,7 +217,7 @@ export default function DeliveryEditTablePage() {
     } finally {
       setLoading(false);
     }
-  }, [searchDate, reqDate, gubun, searchDevcenter, searchStatus, custName, hp, address, driver, user, userCenterList]);
+  }, [startDate, endDate, reqDate, gubun, searchDevcenter, searchStatus, custName, hp, address, driver, user, userCenterList]);
   // ↑ useCallback의 중괄호와 대괄호가 여기서 정확히 닫혀야 합니다.
 
   // --- 자동 조회를 위한 useEffect (함수 밖으로 완전히 분리) ---
@@ -221,7 +235,7 @@ export default function DeliveryEditTablePage() {
   } else {
     console.log("⏳ 조건 미충족: 아직 기다리는 중...");
   }
-}, [user, userCenterList, searchDate, reqDate, gubun, searchDevcenter, searchStatus, userCenterList]);
+}, [user, userCenterList, reqDate, gubun, searchDevcenter, searchStatus, userCenterList]);
 
   // --- 기사 일괄 변경 로직 ---
   const handleBulkDriverUpdate = async () => {
@@ -234,7 +248,8 @@ export default function DeliveryEditTablePage() {
     try {
       const { error } = await supabase.from('ks_devcustm').update({
         cust_devid: targetDriver.driver_id,
-        cust_devemail: targetDriver.driver_email
+        cust_devemail: targetDriver.driver_email,
+        cust_devstatus: '002006' // 배송기사가 지정되면 배차완료 상태로 일괄 변경
       }).in('cust_ordno', selectedRows);
 
       if (error) throw error;
@@ -311,6 +326,10 @@ export default function DeliveryEditTablePage() {
   // --- 개별 행 저장 ---
   const handleSaveRow = async (item: any, index: number) => {
     if (!canEdit) return alert('저장 권한이 없습니다.');
+
+    // 배송상태가 '배차취소'면 기사 정보 초기화, 아니면 기존 기사 정보 유지
+    const isCancelAssign = item.cust_devstatus === '002007'; 
+
     try {
       const { error } = await supabase.from('ks_devcustm').update({
         cust_devdate: item.cust_devdate,
@@ -324,8 +343,10 @@ export default function DeliveryEditTablePage() {
         cust_devmemo: item.cust_devmemo,
         cust_memo: item.cust_memo,      
         cust_inte: item.cust_inte,
-        cust_devemail: item.driver_email, 
-        cust_devid: item.driver_id,
+        cust_devemail: isCancelAssign ? null : item.driver_email,
+        cust_devid: isCancelAssign ? null : item.driver_id,
+        // cust_devemail: item.driver_email, 
+        // cust_devid: updatedDevId, // 배송상태에 따른 기사 정보 업데이트
         cust_devcenter: item.cust_devcenter,
         cust_devstatus: item.cust_devstatus 
       }).eq('cust_ordno', item.cust_ordno);
@@ -344,8 +365,9 @@ export default function DeliveryEditTablePage() {
   const dateInputStyle = "w-full bg-transparent px-1 py-1 focus:bg-white focus:ring-1 focus:ring-blue-400 outline-none border border-slate-200 rounded text-[11px] font-bold text-slate-600 cursor-pointer disabled:border-transparent";
   const headerStyle = "sticky top-0 z-20 bg-slate-900 relative p-3 text-xs font-black text-slate-400 uppercase tracking-wider border-r border-slate-800 last:border-none whitespace-nowrap text-center select-none";
   const cellStyle = "p-1 border-r border-slate-100 last:border-none overflow-hidden";
-  const editableHeaderStyle = (field: string) => `${headerStyle} ${canEdit ? 'decoration-slate-600/50 underline underline-offset-4 decoration-1' : ''}`;
+  const editableHeaderStyle = (field: string) => `${headerStyle} ${canEdit ? 'decoration-slate-600/90 underline underline-offset-4 decoration-3' : ''}`;
   const filterInputStyle = "border border-slate-200 bg-slate-50 rounded-lg px-2 py-1.5 text-xs font-bold outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all";
+  const inputBaseStyle = "border-2 border-slate-400 rounded-lg px-2 text-[14px] font-bold text-slate-900 bg-white outline-none focus:border-blue-600 h-[40px] transition-all";
 
   const ResizeHandle = ({ field }: { field: string }) => (
     <div onMouseDown={(e) => startResizing(field, e)} className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-blue-500/50 transition-colors z-30" style={{ transform: 'translateX(50%)' }} />
@@ -397,10 +419,54 @@ export default function DeliveryEditTablePage() {
               </select>
             </div>
 
-            {/* 배송일 필터 */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[12px] font-black text-slate-400 uppercase">배송일</span>
-              <input type="date" value={searchDate} onChange={(e) => setSearchDate(e.target.value)} className={filterInputStyle} />
+            {/* 배송일자 필터 (From-To) - 다른 조건들과 스타일 통일 */}
+            <div className="flex items-center gap-1.5 relative">
+              <span className=" w-[60px] text-[12px] font-black text-slate-400 uppercase">배송일자</span>
+              <div 
+                onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                /* filterInputStyle을 활용하거나 기존 스타일에서 가로 길이를 맞춤 */
+                className={`${inputStyle} w-[195px] px-2 flex items-center justify-between cursor-pointer hover:border-blue-600 group shadow-sm bg-white`}
+              >
+                <span className="text-[12px] font-bold text-slate-700 tracking-tighter">
+                  {startDate.replace(/-/g, '.')} ~ {endDate.replace(/-/g, '.')}
+                </span>
+                <span className="text-[10px] text-slate-400 group-hover:text-blue-500 ml-1">▼</span>
+              </div>
+
+              {/* 기간 선택 모달 (위치는 absolute로 유지) */}
+              {isCalendarOpen && (
+                <div className="absolute top-[45px] left-0 z-[100] bg-white p-5 rounded-2xl shadow-2xl border-2 border-slate-200 w-[320px]">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <span className="text-sm font-black text-slate-900">조회 기간 설정</span>
+                      <button onClick={() => setIsCalendarOpen(false)} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase">시작일</label>
+                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputBaseStyle} w-full text-xs`} />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase">종료일</label>
+                        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={`${inputBaseStyle} w-full text-xs`} />
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        if (startDate > endDate) {
+                          alert('시작일이 종료일보다 늦을 수 없습니다.');
+                          return;
+                        }
+                        setIsCalendarOpen(false);
+                        fetchDeliveryData(); 
+                      }}
+                      className="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[13px] hover:bg-blue-600 transition-all shadow-md"
+                    >
+                      선택 기간으로 데이터 조회하기
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 고객명 필터 */}
@@ -472,6 +538,32 @@ export default function DeliveryEditTablePage() {
             {loading ? '조회 중...' : '조회하기'}
             {!loading && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px]">{deliveryData.length}</span>}
           </button>
+
+          {/* 1000건 이상조회시 확인 메시지 */}
+          {isDataLimitReached && (
+            <div className="px-6 py-2">
+              <div className="flex items-center justify-between bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-xl shadow-sm animate-pulse">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">⚠️</span>
+                  <div>
+                    <p className="text-amber-800 font-black text-[13px]">
+                      조회된 데이터가 많아 표시되지 않은 데이터가 있을 수 있습니다.
+                    </p>
+                    <p className="text-amber-700 text-[11px]">
+                      정확한 조회를 위해 기간을 줄이거나 상세 조건을 입력해 주세요. (최대 1,000건 출력)
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setIsDataLimitReached(false)} 
+                  className="text-amber-400 hover:text-amber-600 px-2 font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* 상단 가로 스크롤 동기화용 더미 바 */}
@@ -518,7 +610,7 @@ export default function DeliveryEditTablePage() {
                   <th className={editableHeaderStyle('address')} style={{ width: columnWidths.address }}>배송주소 <ResizeHandle field="address" /></th>
                   <th className={editableHeaderStyle('detail_addr')} style={{ width: columnWidths.detail_addr }}>상세주소 <ResizeHandle field="detail_addr" /></th>
                   <th className={editableHeaderStyle('cust_memo')} style={{ width: columnWidths.cust_memo }}>고객요청 <ResizeHandle field="cust_memo" /></th>
-                  <th className={editableHeaderStyle('driver_name')} style={{ width: columnWidths.driver_name }}>배송기사 <ResizeHandle field="driver_name" /></th>
+                  <th className={headerStyle} style={{ width: columnWidths.driver_name }}>배송기사 <ResizeHandle field="driver_name" /></th>
                   <th className={headerStyle} style={{ width: columnWidths.driver_hpno }}>기사연락처 <ResizeHandle field="driver_hpno" /></th>
                   <th className={headerStyle} style={{ width: columnWidths.cust_setname }}>세트정보 <ResizeHandle field="cust_setname" /></th>
                   <th className={editableHeaderStyle('cust_inte')} style={{ width: columnWidths.cust_inte }}>시공정보 <ResizeHandle field="cust_inte" /></th>
@@ -613,7 +705,7 @@ export default function DeliveryEditTablePage() {
                       
                       {/* 비고 및 기타 정보 */}
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_memo || ''} onChange={(e) => handleInputChange(idx, 'cust_memo', e.target.value)} className={inputStyle} /></td>
-                      <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.driver_name || ''} onChange={(e) => handleInputChange(idx, 'driver_name', e.target.value)} className={inputStyle} /></td>
+                      <td className={cellStyle}><div className={readOnlyStyle}>{item.driver_name}</div></td>
                       <td className={cellStyle}><div className={readOnlyStyle}>{item.driver_hpno}</div></td>
                       <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_setname}</div></td>
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_inte || ''} onChange={(e) => handleInputChange(idx, 'cust_inte', e.target.value)} className={inputStyle} /></td>

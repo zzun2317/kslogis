@@ -16,6 +16,7 @@ export default function SignUpPage() {
   const [emailDomain, setEmailDomain] = useState('');
   const [domainList, setDomainList] = useState<CodeItem[]>([]);
   const [isCustomDomain, setIsCustomDomain] = useState(false);
+  const [isSyncEnabled, setIsSyncEnabled] = useState(false);
   
   const [password, setPassword] = useState('');
   const [userId, setUserId] = useState('');
@@ -114,12 +115,29 @@ export default function SignUpPage() {
   const handleIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setUserId(value);
+
+    // '아이디와 동일' 체크 시 이메일 아이디도 함께 변경
+    if (isSyncEnabled) {
+      setEmailId(value); 
+    }
+
     setIdSuccess('');
     setErrors(prev => ({ ...prev, userId: false }));
     const idRegex = /^[a-zA-Z0-9]*$/;
     if (!idRegex.test(value)) setIdError('아이디는 영문과 숫자만 입력 가능합니다.');
     else if (value.length > 0 && value.length < 4) setIdError('아이디는 4자 이상이어야 합니다.');
     else setIdError('');
+  };
+
+  const handleSyncChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    setIsSyncEnabled(checked);
+    
+    if (checked) {
+      setEmailId(userId); // 체크 시 현재 아이디를 이메일 아이디로 복사 
+    } else {
+      setEmailId(''); // 체크 해제 시 공란으로 설정 
+    }
   };
 
   const checkIdDuplicate = async () => {
@@ -244,9 +262,28 @@ export default function SignUpPage() {
           </div>
 
           <div>
-            <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#333' }}>이메일</label>
+            {/* 라벨과 체크박스를 왼쪽 정렬로 나란히 배치 */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '13px', // 이메일 텍스트 크기(13px)만큼 간격을 띄움
+              marginBottom: '5px' 
+            }}>
+              <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#333' }}>이메일</label>
+              {/* '아이디와 동일' 체크박스 추가 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <input 
+                  type="checkbox" 
+                  id="sync-id" 
+                  checked={isSyncEnabled} 
+                  onChange={handleSyncChange} 
+                  style={{ cursor: 'pointer' }}
+                />
+                <label htmlFor="sync-id" style={{ fontSize: '11px', color: '#666', cursor: 'pointer' }}>아이디와 동일</label>
+              </div>
+            </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '5px' }}>
-              <input ref={emailIdRef} type="text" placeholder="이메일" value={emailId} onChange={(e) => { setEmailId(e.target.value); setErrors(prev => ({ ...prev, emailId: false })); }} style={{ ...inputStyle, flex: 2, minWidth: '80px', borderColor: errors.emailId ? '#dc3545' : '#ccc' }} />
+              <input ref={emailIdRef} type="text" placeholder="이메일" value={emailId} readOnly={isSyncEnabled} onChange={(e) => { setEmailId(e.target.value); setErrors(prev => ({ ...prev, emailId: false })); }} style={{ ...inputStyle, flex: 2, minWidth: '80px', backgroundColor: isSyncEnabled ? '#f4f4f4' : '#fff', borderColor: errors.emailId ? '#dc3545' : '#ccc' }} />
               <span>@</span>
               <input type="text" value={emailDomain} onChange={(e) => setEmailDomain(e.target.value)} disabled={!isCustomDomain} placeholder="도메인" style={{ ...inputStyle, flex: 2, minWidth: '80px', backgroundColor: isCustomDomain ? '#fff' : '#f4f4f4' }} />
               

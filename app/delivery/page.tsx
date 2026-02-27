@@ -8,7 +8,11 @@ export default function DeliveryAdminPage() {
   const { user, isLocalManager, userCenterList, isDriver, isMaster, canAccessWeb } = useAuth(); // 2. 권한 정보 가져오기
 
   // --- 상태 정의 ---
-  const [searchDate, setSearchDate] = useState(new Date().toISOString().split('T')[0]);
+  // const [searchDate, setSearchDate] = useState(new Date().toISOString().split('T')[0]);
+  const today = new Date().toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState(today); // 시작일 (시스템 일자 기본)
+  const [endDate, setEndDate] = useState(today);     // 종료일 (시스템 일자 기본)
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false); // 달력 모달 제어
   const [searchName, setSearchName] = useState('');
   const [searchHp, setSearchHp] = useState('');
   const [searchDriver, setSearchDriver] = useState('');
@@ -23,6 +27,7 @@ export default function DeliveryAdminPage() {
   const [centerCodes, setCenterCodes] = useState<any[]>([]); // 센터 목록
   const [searchCenter, setSearchCenter] = useState('전체');  // 선택된 센터 코드
   const searchParamsRef = React.useRef({ searchName, searchHp, searchDriver, searchAddr, searchCenter });
+  const [isDataLimitReached, setIsDataLimitReached] = useState(false); // 데이터 제한 알림 상태
   // 입력값이 바뀔 때마다 Ref에 최신값 저장 (이것은 리렌더링이나 함수 재생성을 일으키지 않음)
   React.useEffect(() => {
     searchParamsRef.current = { searchName, searchHp, searchDriver, searchAddr, searchCenter };
@@ -107,20 +112,22 @@ export default function DeliveryAdminPage() {
   // --- 데이터 조회 함수 ---
   const fetchDeliveryData = useCallback(async () => {
     setLoading(true);
-    try {
+    setIsDataLimitReached(false);
+    try { 
       // Ref에서 최신 값을 가져옵니다.
       const { searchName, searchHp, searchDriver, searchAddr, searchCenter } = searchParamsRef.current;
-      console.log('--- RPC 호출 파라미터 확인 ---');
-      console.log('조회일자:', searchDate);
-      console.log('센터코드(넘어가는 값):', searchCenter); // 👈 이 부분을 확인하시면 됩니다!
-      console.log('검색어(성함):', searchName);
-      console.log('111:', userCenterList.join(','));
-      console.log('---------------------------');
+      // console.log('--- RPC 호출 파라미터 확인 ---');
+      // console.log('조회일자:', startDate, '~', endDate); // startDate, endDate
+      // console.log('센터코드(넘어가는 값):', searchCenter);
+      // console.log('검색어(성함):', searchName);
+      // console.log('111:', userCenterList.join(','));
+      // console.log('---------------------------');
       // 기사 검색어가 비어있을 때는 빈 문자열('')을 보냄 (SQL NULL 처리용)
       const driverParam = searchDriver.trim() ? `%${searchDriver.trim()}%` : '';
 
       const { data, error } = await supabase.rpc('get_delivery_details', {
-        p_devdate: searchDate,
+        p_start_date: startDate,
+        p_end_date: endDate,
         p_name: `%${searchName}%`,
         p_hp: `%${searchHp}%`,
         p_driver: driverParam,
@@ -131,6 +138,12 @@ export default function DeliveryAdminPage() {
       });
 
       if (error) throw error;
+
+      // 2. 그룹화 전 원본 데이터(data)가 1000건인지 확인
+      // Supabase 설정값(Max Rows)이 1000이라면, 딱 1000개가 왔을 때 더 있을 확률이 높습니다.
+      if (data && data.length >= 1000) {
+        setIsDataLimitReached(true);
+      }
 
       const grouped = (data || []).reduce((acc: any[], curr: any) => {
         const found = acc.find(item => item.cust_ordno === curr.cust_ordno);
@@ -164,12 +177,12 @@ export default function DeliveryAdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchDate, searchGubun, userCenterList, searchCenter]); //, searchName, searchHp, searchDriver, searchAddr
+  }, [searchGubun, userCenterList, searchCenter, startDate, endDate]); //, searchName, searchHp, searchDriver, searchAddr
 
   useEffect(() => {
     fetchDeliveryData();
     // 날짜와 구분 값이 변경될 때만 자동으로 서버에서 데이터를 다시 가져옵니다.
-  }, [fetchDeliveryData, searchDate, searchGubun]);
+  }, [fetchDeliveryData, searchGubun]);
 
   // enter키 눌러 조회처리
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -269,10 +282,66 @@ export default function DeliveryAdminPage() {
                 </select>
               </div>
 
-              {/* 배송일자 필터 (구분 오른쪽으로 이동됨) */}
-              <div className="flex flex-col gap-1">
+              {/* 🔍 배송일자 필터 (From-To 커스텀) */}
+              <div className="flex flex-col gap-1 relative">
                 <label className="text-xs font-black text-slate-800 ml-1">배송일자</label>
-                <input type="date" value={searchDate} onChange={(e) => setSearchDate(e.target.value)} className={`${inputBaseStyle} w-[140px]`} />
+                <div 
+                  onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                  className={`${inputBaseStyle} w-[200px] flex items-center justify-between cursor-pointer hover:border-blue-600 group shadow-sm`}
+                >
+                  <span className="text-[13px] font-bold text-slate-700">
+                    {startDate.replace(/-/g, '.')} ~ {endDate.replace(/-/g, '.')}
+                  </span>
+                  <span className="text-[10px] text-slate-400 group-hover:text-blue-500">▼</span>
+                </div>
+
+                {/* 기간 선택 레이어 팝업 */}
+                {isCalendarOpen && (
+                  <div className="absolute top-[70px] left-0 z-[100] bg-white p-5 rounded-2xl shadow-2xl border-2 border-slate-200 w-[320px] animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex flex-col gap-4">
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <span className="text-sm font-black text-slate-900">조회 기간 설정</span>
+                        <button onClick={() => setIsCalendarOpen(false)} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase">시작일 (From)</label>
+                          <input 
+                            type="date" 
+                            value={startDate} 
+                            onChange={(e) => setStartDate(e.target.value)} 
+                            className={`${inputBaseStyle} w-full text-xs`} 
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] font-black text-slate-400 uppercase">종료일 (To)</label>
+                          <input 
+                            type="date" 
+                            value={endDate} 
+                            onChange={(e) => setEndDate(e.target.value)} 
+                            className={`${inputBaseStyle} w-full text-xs`} 
+                          />
+                        </div>
+                      </div>
+
+                      {/* 확인 텍스트/버튼 (조건 3번) */}
+                      <button 
+                        onClick={() => {
+                          if (startDate > endDate) {
+                            alert('시작일이 종료일보다 늦을 수 없습니다.');
+                            return;
+                          }
+                          setIsCalendarOpen(false);
+                          fetchDeliveryData(); // 달력이 닫히면서 즉시 조회 처리
+                        }}
+                        className="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[13px] hover:bg-blue-600 transition-all active:scale-95 shadow-md"
+                      >
+                        선택 기간으로 데이터 조회하기
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-1">
@@ -305,6 +374,25 @@ export default function DeliveryAdminPage() {
                   <span className="text-sm font-black text-blue-600">{deliveryData.length}</span>
                   <span className="text-xs font-bold text-slate-500 ml-0.5">건</span>
                 </div>
+              </div>
+              {/* 상단 필터 영역 아래에 추가 */}
+              <div className="max-w-[1920px] w-full mx-auto px-1">
+                {isDataLimitReached && (
+                  <div className="mb-3 flex items-center justify-between bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-xl shadow-sm animate-pulse">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">⚠️</span>
+                      <div>
+                        <p className="text-amber-800 font-black text-[13px]">
+                          조회된 데이터가 많아 표시되지 않은 데이터가 있을 수 있습니다.
+                        </p>
+                        <p className="text-amber-700 text-[11px]">
+                          정확한 조회를 위해 기간을 줄이거나 상세 조건을 입력해 주세요.
+                        </p>
+                      </div>
+                    </div>
+                    <button onClick={() => setIsDataLimitReached(false)} className="text-amber-400 hover:text-amber-600 px-2 font-bold">✕</button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

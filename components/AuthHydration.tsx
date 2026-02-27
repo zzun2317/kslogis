@@ -65,7 +65,7 @@ export default function AuthHydration({ children }: { children: React.ReactNode 
     initAuth();
   }, [setAuth, clearAuth]);
 
-  // 하이드레이션(데이터 복구)이 끝나기 전에는 아무것도 안 그리거나 로딩 바를 표시
+  //  하이드레이션(데이터 복구)이 끝나기 전에는 아무것도 안 그리거나 로딩 바를 표시
   if (!isHydrated) return <div className="loading-screen">로딩 중...</div>;
 
   return <>{children}</>;
