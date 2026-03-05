@@ -39,27 +39,9 @@ export async function POST(request: Request) {
         lng,
         imageUrl,
         linkUrl,
+        agentHp,
+        agentName
       }).catch(err => console.error('🚀 알림톡 발송 실패:', err));
-
-      if (agentHp && agentHp.length > 0) {
-        // console.log(`🏪 [Vercel API] 매장용 알림톡 발송 시도: ${agentName} (${agentHp})`);
-        
-        await sendAlimtalk({
-          status,
-          phone,
-          name,
-          ordNo,
-          items,
-          driverName,
-          driverHp,
-          lat,
-          lng,
-          imageUrl,
-          linkUrl,
-          agentHp,
-          agentName
-        }).catch(err => console.error('🚀 매장 알림톡 발송 실패:', err));
-      }
 
     }
 
