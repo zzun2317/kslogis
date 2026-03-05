@@ -26,12 +26,44 @@ export default function DeliveryAdminPage() {
   const [statusCodes, setStatusCodes] = useState<any[]>([]); // 상태 공통코드
   const [centerCodes, setCenterCodes] = useState<any[]>([]); // 센터 목록
   const [searchCenter, setSearchCenter] = useState('전체');  // 선택된 센터 코드
-  const searchParamsRef = React.useRef({ searchName, searchHp, searchDriver, searchAddr, searchCenter });
+  const [searchStatus, setSearchStatus] = useState('전체'); // 선택된 상태 코드 
+  const searchParamsRef = React.useRef({ searchName, searchHp, searchDriver, searchAddr, searchCenter, searchStatus, startDate, endDate }); // 최신 검색 조건을 Ref로 관리
   const [isDataLimitReached, setIsDataLimitReached] = useState(false); // 데이터 제한 알림 상태
+  const scrollRef = useRef<HTMLDivElement>(null); // 이미지 영역 참조
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!scrollRef.current) return;
+    setIsDragging(true);
+    // 클릭한 위치 - 요소의 왼쪽 시작점
+    setStartX(e.pageX - scrollRef.current.offsetLeft);
+    // 현재 스크롤된 위치 저장
+    setScrollLeft(scrollRef.current.scrollLeft);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !scrollRef.current) return;
+    e.preventDefault(); // 드래그 중 텍스트 선택 등 방지
+    
+    const x = e.pageX - scrollRef.current.offsetLeft;
+    const walk = (x - startX) * 1.5; // 스크롤 속도 조절 (1.5배)
+    scrollRef.current.scrollLeft = scrollLeft - walk;
+  };
+  
   // 입력값이 바뀔 때마다 Ref에 최신값 저장 (이것은 리렌더링이나 함수 재생성을 일으키지 않음)
   React.useEffect(() => {
-    searchParamsRef.current = { searchName, searchHp, searchDriver, searchAddr, searchCenter };
-  }, [searchName, searchHp, searchDriver, searchAddr, searchCenter]);
+    searchParamsRef.current = { searchName, searchHp, searchDriver, searchAddr, searchCenter, searchStatus, startDate, endDate };
+  }, [searchName, searchHp, searchDriver, searchAddr, searchCenter, searchStatus, startDate, endDate]);
   const [showTopBtn, setShowTopBtn] = useState(false);
   // --- 스크롤 감시 (상단 이동 버튼용) ---
   useEffect(() => {
@@ -115,7 +147,7 @@ export default function DeliveryAdminPage() {
     setIsDataLimitReached(false);
     try { 
       // Ref에서 최신 값을 가져옵니다.
-      const { searchName, searchHp, searchDriver, searchAddr, searchCenter } = searchParamsRef.current;
+      const { searchName, searchHp, searchDriver, searchAddr, searchCenter, searchStatus, startDate, endDate } = searchParamsRef.current;
       // console.log('--- RPC 호출 파라미터 확인 ---');
       // console.log('조회일자:', startDate, '~', endDate); // startDate, endDate
       // console.log('센터코드(넘어가는 값):', searchCenter);
@@ -134,7 +166,8 @@ export default function DeliveryAdminPage() {
         p_address: `%${searchAddr}%`,
         p_user_role: user.user_role,
         p_user_center_list: userCenterList.join(','),
-        p_center_code: searchCenter
+        p_center_code: searchCenter,
+        p_status: searchStatus === '전체' ? '%' : searchStatus
       });
 
       if (error) throw error;
@@ -177,12 +210,12 @@ export default function DeliveryAdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchGubun, userCenterList, searchCenter, startDate, endDate]); //, searchName, searchHp, searchDriver, searchAddr
+  }, [searchGubun, userCenterList, searchCenter, searchStatus]); //, searchName, searchHp, searchDriver, searchAddr, startDate, endDate
 
   useEffect(() => {
     fetchDeliveryData();
     // 날짜와 구분 값이 변경될 때만 자동으로 서버에서 데이터를 다시 가져옵니다.
-  }, [fetchDeliveryData, searchGubun]);
+  }, [fetchDeliveryData, searchGubun, searchStatus]);
 
   // enter키 눌러 조회처리
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -262,6 +295,23 @@ export default function DeliveryAdminPage() {
                   <option value="전체">전체</option>
                   <option value="온라인">온라인</option>
                   <option value="오프라인">오프라인</option>
+                </select>
+              </div>
+
+              {/* 🔍 배송상태 필터 추가 */}
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-black text-slate-800 ml-1">배송상태</label>
+                <select 
+                  value={searchStatus} 
+                  onChange={(e) => setSearchStatus(e.target.value)} 
+                  className={`${inputBaseStyle} w-[120px]`}
+                >
+                  <option value="전체">전체</option>
+                  {statusCodes.map((status) => (
+                    <option key={status.comm_ccode} value={status.comm_ccode}>
+                      {status.comm_text1}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -612,17 +662,31 @@ export default function DeliveryAdminPage() {
                       </p>
                       
                       {/* 💡 핵심: w-full과 overflow-x-auto를 주어 부모 너비를 넘지 않게 합니다. */}
-                      <div className="flex gap-3 overflow-x-auto pb-3 snap-x scrollbar-hide w-full custom-scroll">
+                      <div
+                        ref={scrollRef}
+                        onMouseDown={handleMouseDown}
+                        onMouseLeave={handleMouseLeave}
+                        onMouseUp={handleMouseUp}
+                        onMouseMove={handleMouseMove}
+                        className={`
+                          flex gap-3 overflow-x-auto pb-3 snap-x w-full custom-scroll-style
+                          ${isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}
+                        `}
+                        style={{ scrollBehavior: isDragging ? 'auto' : 'smooth' }} // 드래그 시에는 즉각적으로, 평소엔 부드럽게
+                      >
                         {selectedItem.images && selectedItem.images.length > 0 ? (
                           selectedItem.images.map((img: any, idx: number) => (
                             <div 
                               key={idx}
-                              onClick={() => setPreviewIndex(idx)} // 주소 대신 인덱스를 저장 
+                              onClick={() => {
+                                // 드래그가 아닐 때만 클릭(미리보기)이 작동하게 하고 싶다면 추가 로직 필요
+                                if(!isDragging) setPreviewIndex(idx);
+                              }} // 주소 대신 인덱스를 저장 
                               className="relative min-w-[260px] max-w-[260px] aspect-[4/3] bg-slate-200 rounded-2xl overflow-hidden shadow-sm snap-start border border-white"
                             >
                               <img 
                                 src={img.url} 
-                                className="w-full h-full object-cover shadow-inner" 
+                                className="w-full h-full object-cover shadow-inner pointer-events-none" // 이미지 자체 드래그 방지
                                 alt={`증빙-${idx}`} 
                               />
                               <div className="absolute top-2 left-2">

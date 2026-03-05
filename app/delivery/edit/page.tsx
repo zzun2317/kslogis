@@ -89,10 +89,10 @@ export default function DeliveryEditTablePage() {
 
   // --- 컬럼 너비 조절 상태 ---
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({
-    no: 50, save: 60, chk: 40, devstatus_name: 110, cust_gubun: 90, ordno: 130, devcenter: 150, 
-    devdate: 110, reqdate: 110, cust_devdelaydate: 130, name: 100, hp1: 150, hp2: 150, address: 250, 
+    no: 50, save: 60, chk: 40, devstatus_name: 110, cust_gubun: 90, ordno: 130, devcenter: 150, cust_orddate: 110,
+    devdate: 110, reqdate: 110, cust_devdelaydate: 130, name: 100, hp1: 150, hp2: 150, cust_postno: 100, address: 250, 
     detail_addr: 200, cust_memo: 180, driver_name: 100, driver_hpno: 150, 
-    cust_setname: 150, cust_inte: 150, cost: 120, memo: 150, user_name: 100,
+    cust_setname: 150, cust_inte: 150, cost: 120, memo: 150, user_name: 100, addr_oarea: 100, area_driver_id: 120, area_driver_uuid: 200, area_driver_name: 120
   });
 
   const stickyLeft = useMemo(() => ({
@@ -140,7 +140,7 @@ export default function DeliveryEditTablePage() {
     
     const fetchCommonData = async () => {
       // 기사 목록 로드
-      const { data: drv } = await supabase.from('ks_driver').select('driver_id, driver_name, driver_email, driver_center').order('driver_name');
+      const { data: drv } = await supabase.from('ks_driver').select('driver_id, driver_name, driver_email, driver_center, driver_uuid').order('driver_name');
       if (drv) setDrivers(drv);
       // 물류사 코드(004) 로드
       const { data: dc } = await supabase.from('ks_common').select('comm_ccode, comm_text1').eq('comm_mcode', '004').order('comm_ccode');
@@ -192,6 +192,11 @@ export default function DeliveryEditTablePage() {
 
       if (error) throw error;
 
+      if (data && data.length > 0) {
+        console.log('--- [RPC 결과 데이터 샘플] ---');
+        console.log(data[0]); 
+      }
+
       // [추가] 조회된 데이터가 1000건 이상이면 알림 활성화
       if (data && data.length >= 1000) {
         setIsDataLimitReached(true);
@@ -206,7 +211,11 @@ export default function DeliveryEditTablePage() {
         driver_email: item.driver_email || '',
         driver_id: item.driver_id || '',
         cust_devcenter: item.cust_devcenter || '',
-        cust_devstatus: item.cust_devstatus || '' 
+        cust_devstatus: item.cust_devstatus || '',
+        addr_oarea: item.addr_oarea || '-',
+        area_driver_id: item.area_driver_id || '-',
+        area_driver_uuid: item.area_driver_uuid || null,
+        area_driver_name: item.area_driver_name || '-' 
       }));
 
       setDeliveryData(initializedData);
@@ -246,10 +255,14 @@ export default function DeliveryEditTablePage() {
 
     setLoading(true);
     try {
+      const now = new Date().toISOString();
       const { error } = await supabase.from('ks_devcustm').update({
         cust_devid: targetDriver.driver_id,
+        cust_devuuid: targetDriver.driver_uuid,
         cust_devemail: targetDriver.driver_email,
-        cust_devstatus: '002006' // 배송기사가 지정되면 배차완료 상태로 일괄 변경
+        cust_devstatus: '002006', // 배송기사가 지정되면 배차완료 상태로 일괄 변경
+        cust_devdatefix: true,
+        cust_devdatefixtz: now
       }).in('cust_ordno', selectedRows);
 
       if (error) throw error;
@@ -257,6 +270,52 @@ export default function DeliveryEditTablePage() {
       await fetchDeliveryData();
     } catch (err: any) {
       alert('변경 실패: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- 온라인 배송기사 자동 지정 로직 추가 ---
+  const handleAutoAssignOnlineDriver = async () => {
+    if (!canEdit) return alert('변경 권한이 없습니다.');
+    if (deliveryData.length === 0) return alert('조회된 데이터가 없습니다.');
+
+    // 1. 모든 데이터가 '온라인'인지 확인
+    const hasOffline = deliveryData.some(item => item.cust_gubun === '오프라인');
+    if (hasOffline) {
+      return alert("'온라인' 인 배송건만 조회후 처리 바랍니다");
+    }
+
+    if (!confirm(`조회된 ${deliveryData.length}건에 대해 권역별 온라인 기사를 자동 지정하시겠습니까?`)) return;
+
+    setLoading(true);
+    try {
+      // 2. 각 행별로 업데이트 수행 (Promise.all을 사용하여 병렬 처리)
+      const updatePromises = deliveryData.map(item => {
+        // 권역 담당 기사 정보가 있는 경우에만 업데이트 시도
+        if (item.area_driver_id && item.area_driver_uuid) {
+          return supabase
+            .from('ks_devcustm')
+            .update({
+              cust_devid: item.area_driver_id,
+              cust_devuuid: item.area_driver_uuid,
+              cust_devstatus: '002006' // 배차완료 상태로 변경
+            })
+            .eq('cust_ordno', item.cust_ordno);
+        }
+        return Promise.resolve({ error: null });
+      });
+
+      const results = await Promise.all(updatePromises);
+      const firstError = results.find(r => r.error)?.error;
+      
+      if (firstError) throw firstError;
+
+      alert('✅ 온라인 배송기사가 자동으로 지정되었습니다.');
+      await fetchDeliveryData(); // 화면 갱신
+    } catch (err: any) {
+      console.error('Auto assign error:', err);
+      alert('지정 실패: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -315,10 +374,13 @@ export default function DeliveryEditTablePage() {
     new (window as any).kakao.Postcode({
       oncomplete: function(data: any) {
         let fullAddr = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
+        const zoneCode = data.zonecode;
         const newData = [...deliveryData];
         newData[index].display_addr = fullAddr;
+        newData[index].cust_postno = zoneCode;
         setDeliveryData(newData);
         setTimeout(() => document.getElementById(`detail-addr-${index}`)?.focus(), 100);
+        
       }
     }).open();
   };
@@ -345,6 +407,7 @@ export default function DeliveryEditTablePage() {
         cust_inte: item.cust_inte,
         cust_devemail: isCancelAssign ? null : item.driver_email,
         cust_devid: isCancelAssign ? null : item.driver_id,
+        cust_devuuid: isCancelAssign ? null : item.driver_uuid, 
         // cust_devemail: item.driver_email, 
         // cust_devid: updatedDevId, // 배송상태에 따른 기사 정보 업데이트
         cust_devcenter: item.cust_devcenter,
@@ -530,14 +593,23 @@ export default function DeliveryEditTablePage() {
               >
                 일괄적용
               </button>
+
+              {/* 온라인 기사 자동 지정 버튼 추가 */}
+              <button 
+                onClick={handleAutoAssignOnlineDriver} 
+                disabled={loading || deliveryData.length === 0}
+                className="bg-blue-50 text-blue-700 border border-blue-200 px-4 py-2 rounded-xl font-black text-xs hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50 shadow-sm flex items-center gap-2"
+              >
+                <span className="text-blue-500">⚡</span> 온라인 배송기사 지정
+              </button>
+
+              {/* 조회 버튼 */}
+              <button onClick={fetchDeliveryData} disabled={loading} className="bg-slate-900 text-white px-5 py-2 rounded-xl font-black text-xs hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg">
+                {loading ? '조회 중...' : '조회하기'}
+                {!loading && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px]">{deliveryData.length}</span>}
+              </button>
             </div>
           </div>
-
-          {/* 조회 버튼 */}
-          <button onClick={fetchDeliveryData} disabled={loading} className="bg-slate-900 text-white px-5 py-2 rounded-xl font-black text-xs hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg">
-            {loading ? '조회 중...' : '조회하기'}
-            {!loading && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px]">{deliveryData.length}</span>}
-          </button>
 
           {/* 1000건 이상조회시 확인 메시지 */}
           {isDataLimitReached && (
@@ -601,12 +673,14 @@ export default function DeliveryEditTablePage() {
                   <th className={headerStyle} style={{ width: columnWidths.cust_gubun }}>배송구분 <ResizeHandle field="cust_gubun" /></th>
                   <th className={headerStyle} style={{ width: columnWidths.ordno }}>주문번호 <ResizeHandle field="ordno" /></th>
                   <th className={editableHeaderStyle('devcenter')} style={{ width: columnWidths.devcenter }}>물류사 <ResizeHandle field="devcenter" /></th>
-                  <th className={editableHeaderStyle('devdate')} style={{ width: columnWidths.devdate }}>배송일 <ResizeHandle field="devdate" /></th>
-                  <th className={editableHeaderStyle('reqdate')} style={{ width: columnWidths.reqdate }}>요청일 <ResizeHandle field="reqdate" /></th>
+                  <th className={headerStyle} style={{ width: columnWidths.cust_orddate }}>수주일자 <ResizeHandle field="cust_orddate" /></th>
+                  <th className={editableHeaderStyle('devdate')} style={{ width: columnWidths.devdate }}>배송요청일 <ResizeHandle field="devdate" /></th>
+                  <th className={editableHeaderStyle('reqdate')} style={{ width: columnWidths.reqdate }}>상차요청일 <ResizeHandle field="reqdate" /></th>
                   <th className={headerStyle} style={{ width: columnWidths.cust_devdelaydate }}>연기일자 <ResizeHandle field="cust_devdelaydate" /></th>
                   <th className={editableHeaderStyle('name')} style={{ width: columnWidths.name }}>고객명 <ResizeHandle field="name" /></th>
                   <th className={editableHeaderStyle('hp1')} style={{ width: columnWidths.hp1 }}>연락처1 <ResizeHandle field="hp1" /></th>
                   <th className={editableHeaderStyle('hp2')} style={{ width: columnWidths.hp2 }}>연락처2 <ResizeHandle field="hp2" /></th>
+                  <th className={headerStyle} style={{ width: columnWidths.cust_postno }}>우편번호 <ResizeHandle field="cust_postno" /></th>
                   <th className={editableHeaderStyle('address')} style={{ width: columnWidths.address }}>배송주소 <ResizeHandle field="address" /></th>
                   <th className={editableHeaderStyle('detail_addr')} style={{ width: columnWidths.detail_addr }}>상세주소 <ResizeHandle field="detail_addr" /></th>
                   <th className={editableHeaderStyle('cust_memo')} style={{ width: columnWidths.cust_memo }}>고객요청 <ResizeHandle field="cust_memo" /></th>
@@ -616,7 +690,16 @@ export default function DeliveryEditTablePage() {
                   <th className={editableHeaderStyle('cust_inte')} style={{ width: columnWidths.cust_inte }}>시공정보 <ResizeHandle field="cust_inte" /></th>
                   <th className={editableHeaderStyle('cost')} style={{ width: columnWidths.cost }}>배송비고 <ResizeHandle field="cost" /></th>
                   <th className={editableHeaderStyle('memo')} style={{ width: columnWidths.memo }}>배송메모 <ResizeHandle field="memo" /></th>
+                  <th className={headerStyle} style={{ width: columnWidths.area_driver_name }}>온라인 배송기사 <ResizeHandle field="area_driver_name" /></th>
                   <th className={headerStyle} style={{ width: columnWidths.user_name }}>담당 <ResizeHandle field="user_name" /></th>
+                  {/* 1. SuperAdmin 전용 컬럼들 */}
+                  {user?.user_role === '001001' && (
+                    <>
+                      <th className={headerStyle} style={{ width: columnWidths.addr_oarea }}>온라인배송지역 <ResizeHandle field="addr_oarea" /></th>
+                      <th className={headerStyle} style={{ width: columnWidths.area_driver_id }}>온라인배송ID <ResizeHandle field="area_driver_id" /></th>
+                      <th className={headerStyle} style={{ width: columnWidths.area_driver_uuid }}>온라인배송UUID <ResizeHandle field="area_driver_uuid" /></th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -675,6 +758,13 @@ export default function DeliveryEditTablePage() {
                           {devcenterList.map((dc) => (<option key={dc.comm_ccode} value={dc.comm_ccode}>{dc.comm_text1}</option>))}
                         </select>
                       </td>
+                      
+                      {/* 수주자 (조회전용) */}
+                      <td className={cellStyle}>
+                        <div className={readOnlyStyle} style={{ color: item.devstatus_color || '#64748b', fontWeight: 'bold' }}>
+                          {item.cust_orddate || ''}
+                        </div>
+                      </td>
 
                       {/* 날짜 입력들 */}
                       <td className={cellStyle}><input type="date" disabled={!canEdit || isLocalManager} value={item.cust_devdate || ''} onChange={(e) => handleInputChange(idx, 'cust_devdate', e.target.value)} className={dateInputStyle} /></td>
@@ -691,6 +781,9 @@ export default function DeliveryEditTablePage() {
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_name || ''} onChange={(e) => handleInputChange(idx, 'cust_name', e.target.value)} className={inputStyle} /></td>
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_hpno1 || ''} onChange={(e) => handleInputChange(idx, 'cust_hpno1', e.target.value)} className={inputStyle} /></td>
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_hpno2 || ''} onChange={(e) => handleInputChange(idx, 'cust_hpno2', e.target.value)} className={inputStyle} /></td>
+
+                      {/* 우편번호 데이터 출력 (수정 불가) */}
+                      <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_postno}</div></td>
                       
                       {/* 주소 (카카오 주소 연동) */}
                       <td className={cellStyle}>
@@ -711,7 +804,16 @@ export default function DeliveryEditTablePage() {
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_inte || ''} onChange={(e) => handleInputChange(idx, 'cust_inte', e.target.value)} className={inputStyle} /></td>
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_devcost || ''} onChange={(e) => handleInputChange(idx, 'cust_devcost', e.target.value)} className={inputStyle} /></td>
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_devmemo || ''} onChange={(e) => handleInputChange(idx, 'cust_devmemo', e.target.value)} className={inputStyle} /></td>
+                      <td className={cellStyle}><div className={`${readOnlyStyle} text-blue-600 font-bold bg-blue-50/50`}> {item.area_driver_name || '-'}</div></td>
                       <td className={cellStyle}><div className={readOnlyStyle}>{item.user_name}</div></td>
+                      {/* 1. SuperAdmin(001001) 전용 컬럼: 권역 및 온라인 ID 정보 */}
+                      {user?.user_role === '001001' && (
+                        <>
+                          <td className={cellStyle}><div className={readOnlyStyle}>{item.addr_oarea || '-'}</div></td>
+                          <td className={cellStyle}><div className={readOnlyStyle}>{item.area_driver_id || '-'}</div></td>
+                          <td className={cellStyle}><div className={readOnlyStyle}>{item.area_driver_uuid || '-'}</div></td>
+                        </>
+                      )}
                     </tr>
                   );
                 })}

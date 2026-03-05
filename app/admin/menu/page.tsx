@@ -293,7 +293,7 @@ export default function MenuAdminPage() {
               <table className="w-full text-left text-sm border-collapse">
                 <thead className="sticky top-0 bg-slate-100 z-10 border-b">
                   <tr className="text-slate-600 text-[11px] uppercase tracking-wider">
-                    <th className="p-3 w-14 text-center">순서</th>
+                    <th className="p-3 w-18 text-center">순서</th>
                     <th className="p-3 w-32">메뉴명</th>
                     <th className="p-3">경로</th>
                     <th className="p-3 w-14 text-center">사용</th>

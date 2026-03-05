@@ -182,9 +182,11 @@ export default function UserRegisterPage() {
         {/* 이메일 */}
         <div className="flex flex-col gap-1">
           <label className={labelStyle}>이메일 주소</label>
-          <div className="flex items-center gap-2">
+          <div className="flex gap-2">
             <input ref={refs.emailId} type="text" className={inputStyle} value={formData.emailId} onChange={(e) => { setFormData({...formData, emailId: e.target.value}); setEmailSuccess(false); }} />
-            <span className="font-bold text-slate-900">@</span>
+            <div className="flex items-center">
+              <span className="font-bold text-slate-900">@</span>
+            </div>
             <input 
               type="text" 
               className={inputStyle} 
