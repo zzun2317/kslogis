@@ -18,7 +18,9 @@ export async function POST(request: Request) {
       lat, 
       lng, 
       imageUrl,
-      linkUrl 
+      linkUrl,
+      agentHp,
+      agentName 
     } = body;
 
     // 2. 알림톡 발송 (START 또는 COMPLETE 상태일 때)
@@ -36,8 +38,29 @@ export async function POST(request: Request) {
         lat,
         lng,
         imageUrl,
-        linkUrl
+        linkUrl,
       }).catch(err => console.error('🚀 알림톡 발송 실패:', err));
+
+      if (agentHp && agentHp.length > 0) {
+        // console.log(`🏪 [Vercel API] 매장용 알림톡 발송 시도: ${agentName} (${agentHp})`);
+        
+        await sendAlimtalk({
+          status,
+          phone,
+          name,
+          ordNo,
+          items,
+          driverName,
+          driverHp,
+          lat,
+          lng,
+          imageUrl,
+          linkUrl,
+          agentHp,
+          agentName
+        }).catch(err => console.error('🚀 매장 알림톡 발송 실패:', err));
+      }
+
     }
 
     // 3. 앱으로 즉각 응답 (알림톡 발송은 백그라운드에서 처리됨)

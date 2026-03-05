@@ -21,7 +21,7 @@ export default function Navbar() {
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
 
-  const isAuthPage = pathname === '/login' || pathname === '/signup';
+  const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname?.startsWith('/view-images');
 
   // 스크롤 위치에 따라 화살표 표시 여부 결정
   const checkScroll = () => {
