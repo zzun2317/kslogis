@@ -91,7 +91,7 @@ export default function ExcelUploadPage() {
         const data = evt.target?.result;
         const wb = XLSX.read(data, { type: 'binary', cellDates: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rawData: any[] = XLSX.utils.sheet_to_json(ws);
+        const rawData: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
         if (rawData.length > 0) {
           const formattedData = rawData.map(row => {
@@ -209,6 +209,23 @@ export default function ExcelUploadPage() {
           // const firstRowIndex = updatedData.findIndex(r => r['수주번호'] === orderNo);
           const firstRowIndex = updatedData.findIndex((r: any) => String(r['수주번호']).trim() === orderNo);
           const row = updatedData[firstRowIndex];
+
+          // 1. 연락처 자동 보정 로직 (휴대전화번호가 없으면 전화번호를 대입)
+          // row 객체는 참조값이므로 여기서 수정하면 updatedData에도 반영됩니다.
+          const hp1 = String(row['휴대전화번호'] || '').trim();
+          const hp2 = String(row['전화번호'] || '').trim();
+
+          if (!hp1 && hp2) {
+            row['휴대전화번호'] = hp2; // 휴대전화번호가 비었을 때 전화번호를 넣어줌
+          }
+
+          // 2. 필수 항목 체크 (이제 휴대전화번호가 보정되었으므로, 둘 다 없을 때만 에러가 납니다)
+          REQUIRED_COLUMNS.forEach(col => {
+            const val = row[col]?.toString().trim();
+            if (!val) {
+              newErrors.push({ row: firstRowIndex, column: col, message: `${col} 필수!` });
+            }
+          });
           
           // 필수 항목 체크 [cite: 1, 123]
           REQUIRED_COLUMNS.forEach(col => {
@@ -258,6 +275,7 @@ export default function ExcelUploadPage() {
           // updatedData.forEach((item, idx) => {
           updatedData.forEach((item: any, idx: number) => {
           if (item['수주번호'] === orderNo) {
+            updatedData[idx]['휴대전화번호'] = row['휴대전화번호'];
             updatedData[idx].cust_devcenter = mappedCenterCode;
             updatedData[idx].cust_lat = cust_lat;
             updatedData[idx].cust_lng = cust_lng;

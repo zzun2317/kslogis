@@ -49,6 +49,7 @@ export default function DeliveryEditTablePage() {
   const [loading, setLoading] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [isDataLimitReached, setIsDataLimitReached] = useState(false); // 1000건 이상 조회 시 경고 메시지 표시 여부
+  const [dateSearchType, setDateSearchType] = useState<'DEV' | 'ORD'>('ORD'); // 배송일자 검색 기준 선택 (DEV: 배송일자, ORD: 수주일자)
   
   // --- 목록 및 마스터 데이터 관리 ---
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
@@ -89,7 +90,7 @@ export default function DeliveryEditTablePage() {
 
   // --- 컬럼 너비 조절 상태 ---
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({
-    no: 50, save: 60, chk: 40, devstatus_name: 110, cust_gubun: 90, ordno: 130, devcenter: 150, cust_orddate: 110,
+    no: 50, save: 60, chk: 40, devstatus_name: 110, cust_gubun: 90, ordno: 130, devcenter: 150, cust_orddate: 120,
     devdate: 110, reqdate: 110, cust_devdelaydate: 130, name: 100, hp1: 150, hp2: 150, cust_postno: 100, address: 250, 
     detail_addr: 200, cust_memo: 180, driver_name: 100, driver_hpno: 150, 
     cust_setname: 150, cust_inte: 150, cost: 120, memo: 150, user_name: 100, addr_oarea: 100, area_driver_id: 120, area_driver_uuid: 200, area_driver_name: 120
@@ -172,6 +173,7 @@ export default function DeliveryEditTablePage() {
       // p_devdate: searchDate.trim(),
       p_start_date: startDate,
       p_end_date: endDate,
+      p_date_type: dateSearchType,
       p_reqdate: reqDate.trim() || '%',
       p_gubun: gubun === '전체' ? '%' : gubun,
       p_name: custName.trim() ? `%${custName.trim()}%` : '%',
@@ -483,8 +485,25 @@ export default function DeliveryEditTablePage() {
             </div>
 
             {/* 배송일자 필터 (From-To) - 다른 조건들과 스타일 통일 */}
-            <div className="flex items-center gap-1.5 relative">
-              <span className=" w-[60px] text-[12px] font-black text-slate-400 uppercase">배송일자</span>
+            {/* 날짜 조회 기준 토글 버튼 */}
+            <div className="flex items-center gap-1 mr-1 bg-slate-50 px-2 py-1.5 rounded-full border border-slate-200 shadow-sm">
+              <span className={`text-[11px] font-black transition-colors ${dateSearchType === 'DEV' ? 'text-blue-600' : 'text-slate-400'}`}>배송일</span>
+              
+              <button 
+                onClick={() => setDateSearchType(prev => prev === 'DEV' ? 'ORD' : 'DEV')}
+                className="relative w-10 h-5 bg-slate-200 rounded-full transition-all duration-300 focus:outline-none hover:bg-slate-300"
+              >
+                {/* 스위치 핸들 (O 표시 부분) */}
+                <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full shadow-md transition-transform duration-300 flex items-center justify-center
+                  ${dateSearchType === 'ORD' ? 'translate-x-5 !bg-blue-600' : 'bg-slate-500'}`}
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-white opacity-50"></div>
+                </div>
+              </button>
+              
+              <span className={`text-[11px] font-black transition-colors ${dateSearchType === 'ORD' ? 'text-blue-600' : 'text-slate-400'}`}>수주일</span>
+            </div>
+            <div className="flex items-center gap-1 relative">
               <div 
                 onClick={() => setIsCalendarOpen(!isCalendarOpen)}
                 /* filterInputStyle을 활용하거나 기존 스타일에서 가로 길이를 맞춤 */

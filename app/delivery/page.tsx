@@ -33,6 +33,7 @@ export default function DeliveryAdminPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
+  const [dateSearchType, setDateSearchType] = useState<'DEV' | 'ORD'>('ORD'); // 기본값 수주일
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!scrollRef.current) return;
@@ -160,6 +161,7 @@ export default function DeliveryAdminPage() {
       const { data, error } = await supabase.rpc('get_delivery_details', {
         p_start_date: startDate,
         p_end_date: endDate,
+        p_date_type: dateSearchType,
         p_name: `%${searchName}%`,
         p_hp: `%${searchHp}%`,
         p_driver: driverParam,
@@ -332,66 +334,87 @@ export default function DeliveryAdminPage() {
                 </select>
               </div>
 
-              {/* 🔍 배송일자 필터 (From-To 커스텀) */}
-              <div className="flex flex-col gap-1 relative">
-                <label className="text-xs font-black text-slate-800 ml-1">배송일자</label>
-                <div 
-                  onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-                  className={`${inputBaseStyle} w-[200px] flex items-center justify-between cursor-pointer hover:border-blue-600 group shadow-sm`}
-                >
-                  <span className="text-[13px] font-bold text-slate-700">
-                    {startDate.replace(/-/g, '.')} ~ {endDate.replace(/-/g, '.')}
+              {/* 🔍 배송일자/수주일자 필터 (텍스트 제거 버전) */}
+              <div className="flex flex-col gap-1">
+                {/* 기존 라벨 텍스트를 제거하고 토글 버튼을 상단에 배치 */}
+                <div className="flex items-center gap-1.5 px-1 min-h-[16px]"> 
+                  <span className={`text-[10px] font-black transition-colors ${dateSearchType === 'DEV' ? 'text-blue-600' : 'text-slate-400'}`}>
+                    배송요청일
                   </span>
-                  <span className="text-[10px] text-slate-400 group-hover:text-blue-500">▼</span>
+                  
+                  <button 
+                    onClick={() => setDateSearchType(prev => (prev === 'DEV' ? 'ORD' : 'DEV'))}
+                    className="relative w-8 h-4 bg-slate-200 rounded-full transition-all duration-300 focus:outline-none hover:bg-slate-300"
+                  >
+                    <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform duration-300
+                      ${dateSearchType === 'ORD' ? 'translate-x-4 !bg-blue-600' : 'bg-slate-500'}`}
+                    />
+                  </button>
+                  
+                  <span className={`text-[10px] font-black transition-colors ${dateSearchType === 'ORD' ? 'text-blue-600' : 'text-slate-400'}`}>
+                    수주일
+                  </span>
                 </div>
 
-                {/* 기간 선택 레이어 팝업 */}
-                {isCalendarOpen && (
-                  <div className="absolute top-[70px] left-0 z-[100] bg-white p-5 rounded-2xl shadow-2xl border-2 border-slate-200 w-[320px] animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="flex flex-col gap-4">
-                      <div className="flex items-center justify-between border-b pb-2">
-                        <span className="text-sm font-black text-slate-900">조회 기간 설정</span>
-                        <button onClick={() => setIsCalendarOpen(false)} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase">시작일 (From)</label>
-                          <input 
-                            type="date" 
-                            value={startDate} 
-                            onChange={(e) => setStartDate(e.target.value)} 
-                            className={`${inputBaseStyle} w-full text-xs`} 
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-black text-slate-400 uppercase">종료일 (To)</label>
-                          <input 
-                            type="date" 
-                            value={endDate} 
-                            onChange={(e) => setEndDate(e.target.value)} 
-                            className={`${inputBaseStyle} w-full text-xs`} 
-                          />
-                        </div>
-                      </div>
-
-                      {/* 확인 텍스트/버튼 (조건 3번) */}
-                      <button 
-                        onClick={() => {
-                          if (startDate > endDate) {
-                            alert('시작일이 종료일보다 늦을 수 없습니다.');
-                            return;
-                          }
-                          setIsCalendarOpen(false);
-                          fetchDeliveryData(); // 달력이 닫히면서 즉시 조회 처리
-                        }}
-                        className="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[13px] hover:bg-blue-600 transition-all active:scale-95 shadow-md"
-                      >
-                        선택 기간으로 데이터 조회하기
-                      </button>
-                    </div>
+                {/* 기간 선택 (From-To) */}
+                <div className="relative">
+                  <div 
+                    onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                    className={`${inputBaseStyle} w-[200px] flex items-center justify-between cursor-pointer hover:border-blue-600 group shadow-sm bg-white`}
+                  >
+                    <span className="text-[13px] font-bold text-slate-700 tracking-tighter">
+                      {startDate.replace(/-/g, '.')} ~ {endDate.replace(/-/g, '.')}
+                    </span>
+                    <span className="text-[10px] text-slate-400 group-hover:text-blue-500">▼</span>
                   </div>
-                )}
+
+                  {/* 기간 선택 레이어 팝업 (기존 유지) */}
+                  {isCalendarOpen && (
+                    <div className="absolute top-[45px] left-0 z-[100] bg-white p-5 rounded-2xl shadow-2xl border-2 border-slate-200 w-[320px] animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-center justify-between border-b pb-2">
+                          <span className="text-sm font-black text-slate-900">조회 기간 설정</span>
+                          <button onClick={() => setIsCalendarOpen(false)} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase">시작일 (From)</label>
+                            <input 
+                              type="date" 
+                              value={startDate} 
+                              onChange={(e) => setStartDate(e.target.value)} 
+                              className={`${inputBaseStyle} w-full text-xs`} 
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase">종료일 (To)</label>
+                            <input 
+                              type="date" 
+                              value={endDate} 
+                              onChange={(e) => setEndDate(e.target.value)} 
+                              className={`${inputBaseStyle} w-full text-xs`} 
+                            />
+                          </div>
+                        </div>
+
+                        <button 
+                          onClick={() => {
+                            if (startDate > endDate) {
+                              alert('시작일이 종료일보다 늦을 수 없습니다.');
+                              return;
+                            }
+                            setIsCalendarOpen(false);
+                            fetchDeliveryData(); 
+                          }}
+                          className="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[13px] hover:bg-blue-600 transition-all active:scale-95 shadow-md"
+                        >
+                          선택 기간으로 데이터 조회하기
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex flex-col gap-1">
@@ -504,6 +527,10 @@ export default function DeliveryAdminPage() {
                           </td>
                           <td className="p-5">
                             <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded font-bold">수주</span>
+                                <span className="text-sm font-bold text-slate-700">{item.cust_orddate || '-'}</span>
+                              </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-[10px] bg-slate-200 px-1 rounded font-bold">배송</span>
                                 <span className="text-sm font-bold text-slate-700">{item.cust_devdate || '-'}</span>
