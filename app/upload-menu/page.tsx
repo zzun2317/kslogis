@@ -132,22 +132,52 @@ export default function ExcelUploadPage() {
     }
   };
 
-  const getCoordinates = async (address: string): Promise<{lat: number | null, lng: number | null}> => {
+  const getCoordinates = async (address: string): Promise<{
+    lat: number | null, 
+    lng: number | null, 
+    refinedAddress: string | null, 
+    zoneNo: string | null
+  }> => {
     return new Promise((resolve) => {
-      if (!window.kakao || !window.kakao.maps || !window.kakao.maps.services) {
-        resolve({ lat: null, lng: null });
+      // 1. kakao 객체 자체가 없을 때 (스크립트 로딩 실패 등)
+      if (!window.kakao || !window.kakao.maps) {
+        console.error("카카오 맵 스크립트가 로드되지 않았습니다.");
+        resolve({ lat: null, lng: null, refinedAddress: null, zoneNo: null });
         return;
       }
 
-      const geocoder = new window.kakao.maps.services.Geocoder();
-      const cleanAddress = address.trim();
-
-      geocoder.addressSearch(cleanAddress, (result: any, status: any) => {
-        if (status === window.kakao.maps.services.Status.OK && result.length > 0) {
-          resolve({ lat: parseFloat(result[0].y), lng: parseFloat(result[0].x) });
-        } else {
-          resolve({ lat: null, lng: null });
+      // 2. autoload=false 대응: load 콜백 내부에서 실행
+      window.kakao.maps.load(() => {
+        // 3. services 라이브러리 존재 확인
+        if (!window.kakao.maps.services) {
+          console.error("카카오 맵 'services' 라이브러리가 누락되었습니다. (URL 파라미터 확인)");
+          resolve({ lat: null, lng: null, refinedAddress: null, zoneNo: null });
+          return;
         }
+
+        const geocoder = new window.kakao.maps.services.Geocoder();
+        const words = address.trim().split(' ');
+
+        // [기존 재귀 검색 로직 시작]
+        const searchAddress = (currentAddress: string, wordCount: number) => {
+          geocoder.addressSearch(currentAddress, (result: any, status: any) => {
+            if (status === window.kakao.maps.services.Status.OK && result.length > 0) {
+              const addrInfo = result[0];
+              resolve({ 
+                lat: parseFloat(addrInfo.y), 
+                lng: parseFloat(addrInfo.x),
+                refinedAddress: addrInfo.address_name,
+                zoneNo: addrInfo.road_address ? addrInfo.road_address.zone_code : (addrInfo.address ? addrInfo.address.zip_code : null)
+              });
+            } else if (wordCount > 1) {
+              const nextAddress = words.slice(0, wordCount - 1).join(' ');
+              searchAddress(nextAddress, wordCount - 1);
+            } else {
+              resolve({ lat: null, lng: null, refinedAddress: null, zoneNo: null });
+            }
+          });
+        };
+        searchAddress(address, words.length);
       });
     });
   };
@@ -226,13 +256,6 @@ export default function ExcelUploadPage() {
               newErrors.push({ row: firstRowIndex, column: col, message: `${col} 필수!` });
             }
           });
-          
-          // 필수 항목 체크 [cite: 1, 123]
-          REQUIRED_COLUMNS.forEach(col => {
-            if (!row[col]?.toString().trim()) {
-              newErrors.push({ row: firstRowIndex, column: col, message: `${col} 필수!` });
-            }
-          });
 
           // 온라인 배송건 우편번호 확인 : 온라인 주문은 우편번호가 필수입니다. [cite: 123]
           if (row['수주구분'] === '온라인' && !row['우편번호']?.toString().trim()) {
@@ -261,22 +284,72 @@ export default function ExcelUploadPage() {
             mappedCenterCode = vehicleCodeMap.get(vehicleName);
           }
 
-          // 주소 좌표 추출 (카카오 API) 
+          // console.log("--- 주소 검증 진입 ---", row['주소1']);
+
+          // 1. 주소 처리 로직 수정. 주소1에 상세주소가 입력되어 있는 경우 위치좌표, 상세주소 분리입력처리
           let cust_lat = null, cust_lng = null;
           if (row['주소1']?.trim()) {
-            const coords = await getCoordinates(row['주소1']);
+            const originalAddress1 = row['주소1'].trim();
+            // console.log("getCoordinates 호출 직전:", originalAddress1);
+            const coords = await getCoordinates(originalAddress1);
+            // console.log("getCoordinates 결과 수신:", coords);
+            
             cust_lat = coords.lat;
             cust_lng = coords.lng;
-            if (!cust_lat || !cust_lng) {
-              newErrors.push({ row: firstRowIndex, column: '주소1', message: `좌표 오류` });
+
+            if (cust_lat && cust_lng && coords.refinedAddress) {
+              const refined = coords.refinedAddress.trim();
+              const original = originalAddress1.trim();
+              
+              // 방법 1: 원본 주소에서 정제 주소 문자열이 시작되는 지점을 찾아 그 이후를 상세주소로 인식
+              let detailPart = '';
+              const startIndex = original.indexOf(refined);
+              
+              if (startIndex !== -1) {
+                // 정제 주소 이후의 나머지 문자열을 가져옴
+                detailPart = original.substring(startIndex + refined.length).trim();
+              } else {
+                // 만약 정확히 일치하는 지점이 없다면 (띄어쓰기 등 불일치), 
+                // 최소한 정제 주소와 원본 주소가 다를 때만 상세주소가 있다고 판단
+                if (original !== refined) {
+                  detailPart = original.replace(refined, '').trim();
+                }
+              }
+
+              row['주소1'] = detailPart ? `${refined} ${detailPart}` : refined;
+              
+              if (coords.zoneNo) {
+                row['우편번호'] = coords.zoneNo;
+              }
+              
             }
           }
 
+          // 주소 좌표 추출 (카카오 API) 
+          // let cust_lat = null, cust_lng = null;
+          // if (row['주소1']?.trim()) {
+          //   const coords = await getCoordinates(row['주소1']);
+          //   cust_lat = coords.lat;
+          //   cust_lng = coords.lng;
+          //   if (!cust_lat || !cust_lng) {
+          //     newErrors.push({ row: firstRowIndex, column: '주소1', message: `좌표 오류` });
+          //   }
+          // }
+
+          // 필수 항목 체크 [cite: 1, 123]
+          REQUIRED_COLUMNS.forEach(col => {
+            if (!row[col]?.toString().trim()) {
+              newErrors.push({ row: firstRowIndex, column: col, message: `${col} 필수!` });
+            }
+          });
+
           // updatedData.forEach((item, idx) => {
           updatedData.forEach((item: any, idx: number) => {
-          if (item['수주번호'] === orderNo) {
+          if (String(item['수주번호']).trim() === String(orderNo).trim()) {
             updatedData[idx]['휴대전화번호'] = row['휴대전화번호'];
             updatedData[idx].cust_devcenter = mappedCenterCode;
+            updatedData[idx]['주소1'] = row['주소1'];
+            updatedData[idx]['우편번호'] = row['우편번호'];
             updatedData[idx].cust_lat = cust_lat;
             updatedData[idx].cust_lng = cust_lng;
             if (isDuplicate) {
