@@ -20,8 +20,9 @@ export default function MenuAdminPage() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isAdding, setIsAdding] = useState(false);
-  const [newMenu, setNewMenu] = useState({ menu_name: '', menu_path: '', menu_sort: 0, is_use: true });
+  const [newMenu, setNewMenu] = useState({ menu_name: '', menu_path: '', menu_sort: 0, is_use: true, menu_group: ''});
   const [userSearch, setUserSearch] = useState('');
+  const [categories, setCategories] = useState<any[]>([]);
 
     const fetchInitialData = useCallback(async () => {
     setLoading(true);
@@ -29,10 +30,14 @@ export default function MenuAdminPage() {
       const { data: menuData } = await supabase.from('ks_menu').select('*').order('menu_sort', { ascending: true });
       const { data: roleData } = await supabase.from('ks_common').select('comm_ccode, comm_text1').eq('comm_mcode', '001').eq('comm_use', true).order('comm_sort');
       const { data: userData } = await supabase.from('ks_users').select('user_uuid, user_name, user_email');
+      const { data: catData } = await supabase.from('ks_common').select('comm_ccode, comm_text1').eq('comm_mcode', '008').eq('comm_use', true).order('comm_sort');
 
       if (menuData) {
           setMenus(menuData);
           setNewMenu(prev => ({ ...prev, menu_sort: menuData.length + 1 }));
+      }
+      if (catData) {
+          setCategories(catData);
       }
       if (roleData) {
           setRoles([
@@ -200,7 +205,8 @@ export default function MenuAdminPage() {
           menu_name: menu.menu_name, 
           menu_path: menu.menu_path, 
           menu_sort: menu.menu_sort,
-          is_use: menu.is_use 
+          is_use: menu.is_use,
+          menu_group: menu.menu_group 
         })
         .eq('menu_id', menu.menu_id);
 
@@ -232,7 +238,7 @@ export default function MenuAdminPage() {
       if (error) throw error;
       alert('메뉴가 추가되었습니다.');
       setIsAdding(false);
-      setNewMenu({ menu_name: '', menu_path: '', menu_sort: menus.length + 2, is_use: true });
+      setNewMenu({ menu_name: '', menu_path: '', menu_sort: menus.length + 2, is_use: true, menu_group: '' });
       fetchInitialData();
     } catch (e) {
       alert('저장 실패');
@@ -296,6 +302,7 @@ export default function MenuAdminPage() {
                     <th className="p-3 w-18 text-center">순서</th>
                     <th className="p-3 w-32">메뉴명</th>
                     <th className="p-3">경로</th>
+                    <th className="p-3 w-32">카테고리</th>
                     <th className="p-3 w-14 text-center">사용</th>
                     <th className="p-3 w-16 text-center">작업</th>
                   </tr>
@@ -307,6 +314,18 @@ export default function MenuAdminPage() {
                       <td className="p-2"><input type="number" className={inputStyle} value={newMenu.menu_sort} onChange={e => setNewMenu({...newMenu, menu_sort: parseInt(e.target.value)})}/></td>
                       <td className="p-2"><input type="text" className={inputStyle} value={newMenu.menu_name} onChange={e => setNewMenu({...newMenu, menu_name: e.target.value})}/></td>
                       <td className="p-2"><input type="text" className={inputStyle} value={newMenu.menu_path} onChange={e => setNewMenu({...newMenu, menu_path: e.target.value})}/></td>
+                      <td className="p-2">
+                        <select 
+                          className={inputStyle}
+                          value={newMenu.menu_group || ''}
+                          onChange={e => setNewMenu({...newMenu, menu_group: e.target.value})}
+                        >
+                          {/* <option value="">미지정</option> */}
+                          {categories.map(cat => (
+                            <option key={cat.comm_ccode} value={cat.comm_ccode}>{cat.comm_text1}</option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="p-2 text-center"><input type="checkbox" checked={newMenu.is_use} onChange={e => setNewMenu({...newMenu, is_use: e.target.checked})}/></td>
                       <td className="p-2"><button onClick={handleSaveNewMenu} className="w-full bg-slate-800 text-white py-1 rounded text-[10px] font-bold">저장</button></td>
                     </tr>
@@ -321,6 +340,18 @@ export default function MenuAdminPage() {
                       <td className="p-2"><input type="number" className={inputStyle} value={menu.menu_sort} onChange={e => handleMenuFieldChange(idx, 'menu_sort', parseInt(e.target.value))}/></td>
                       <td className="p-2"><input type="text" className={inputStyle} value={menu.menu_name} onChange={e => handleMenuFieldChange(idx, 'menu_name', e.target.value)} /></td>
                       <td className="p-2"><input type="text" className={inputStyle} value={menu.menu_path} onChange={e => handleMenuFieldChange(idx, 'menu_path', e.target.value)} /></td>
+                      <td className="p-2">
+                        <select 
+                          className={inputStyle}
+                          value={menu.menu_group || ''}
+                          onChange={e => handleMenuFieldChange(idx, 'menu_group', e.target.value)}
+                        >
+                          {/* <option value="">미지정</option> */}
+                          {categories.map(cat => (
+                            <option key={cat.comm_ccode} value={cat.comm_ccode}>{cat.comm_text1}</option>
+                          ))}
+                        </select>
+                      </td>
                       <td className="p-2 text-center">
                         <input 
                           type="checkbox" 

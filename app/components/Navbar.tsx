@@ -13,6 +13,41 @@ export default function Navbar() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // 메뉴 그룹핑
+  const [groupedMenuList, setGroupedMenuList] = useState<{ [key: string]: any[] }>({});
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [modalPos, setModalPos] = useState({ top: 0, left: 0 });
+  const toggleCategory = (e: React.MouseEvent<HTMLDivElement>, key: string) => {
+  // 이벤트 버블링 방지 (부모의 클릭 이벤트가 실행되지 않도록)
+    e.stopPropagation();
+
+    if (activeCategory === key) {
+      setActiveCategory(null); // 이미 열려있으면 닫기
+    } else {
+      const rect = e.currentTarget.getBoundingClientRect();
+      setModalPos({ 
+        top: rect.bottom, // + window.scrollY, 
+        left: rect.left + window.scrollX 
+      });
+      setActiveCategory(key); // 새 카테고리 열기
+    }
+  };
+
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setActiveCategory(null);
+    };
+
+    if (activeCategory) {
+      // 모달이 열려있을 때만 문서 전체에 클릭 이벤트 리스너 등록
+      window.addEventListener('click', handleClickOutside);
+    }
+
+    return () => {
+      window.removeEventListener('click', handleClickOutside);
+    };
+  }, [activeCategory]);
+
   // --- DB에서 가져온 메뉴 리스트 ---
   const [menuList, setMenuList] = useState<any[]>([]);
 
@@ -124,19 +159,58 @@ export default function Navbar() {
         return setMenuList([]);
       }
 
-      // 4. 최종 메뉴 정보 로드
+      // 메뉴 카테고리 추가
       const { data, error } = await supabase
         .from('ks_menu')
-        .select('menu_id, menu_name, menu_path')
+        .select(`
+          menu_id, menu_name, menu_path, menu_group,
+          ks_common:menu_group (
+            comm_ccode,
+            comm_text1,
+            comm_sort
+          )
+        `)
         .in('menu_id', uniqueMenuIds)
         .eq('is_use', true)
+        // 카테고리 정렬 후 메뉴 정렬 적용
+        .order('comm_sort', { foreignTable: 'ks_common', ascending: true })
         .order('menu_sort', { ascending: true });
 
-      if (data) setMenuList(data);
+      if (data) {
+        // 3. 데이터를 카테고리별로 그룹화
+        const grouped = data.reduce((acc: any, item: any) => {
+          const categoryCode = item.menu_group;
+          const categoryName = item.ks_common?.comm_text1 || '기타';
+
+          // comm_ccode가 '001005'(HOME)인 경우 별도 처리
+          const groupKey = categoryCode === '001005' ? '_HOME_' : categoryName;
+
+          if (!acc[groupKey]) acc[groupKey] = [];
+          acc[groupKey].push(item);
+          return acc;
+        }, {});
+
+        setGroupedMenuList(grouped);
+      }
     } catch (err) {
       console.error("메뉴 로드 중 에러:", err);
     }
   };
+
+
+      // 4. 최종 메뉴 정보 로드
+  //     const { data, error } = await supabase
+  //       .from('ks_menu')
+  //       .select('menu_id, menu_name, menu_path')
+  //       .in('menu_id', uniqueMenuIds)
+  //       .eq('is_use', true)
+  //       .order('menu_sort', { ascending: true });
+
+  //     if (data) setMenuList(data);
+  //   } catch (err) {
+  //     console.error("메뉴 로드 중 에러:", err);
+  //   }
+  // };
 
   // 로그인/회원가입 페이지에서는 네비바를 숨깁니다.
   if (isAuthPage) return null;
@@ -190,15 +264,15 @@ export default function Navbar() {
 
   return (
     <header className="bg-slate-900 text-white sticky top-0 z-[100] shadow-md w-full">
-      <div className="max-w-[1400px] mx-auto px-4 py-4 flex items-center justify-between">
+      <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
         
         {/* [왼쪽] 로고 - 고정 */}
-        <Link href="/delivery" className="text-xl font-black tracking-tighter text-blue-400 uppercase shrink-0 mr-8">
+        <Link href="/delivery" className="text-xl font-black tracking-tighter text-blue-400 uppercase shrink-0 mr-4">
           KS Logistics
         </Link>
         
         {/* [가운데] 메뉴 리스트 영역 - 가변 및 스크롤 */}
-        <div className="relative flex-1 flex items-center overflow-hidden mr-4">
+        <div className="relative flex-1 flex items-center">
 
           {/* 왼쪽 화살표 버튼 */}
           {showLeftArrow && (
@@ -213,6 +287,75 @@ export default function Navbar() {
           <nav 
             ref={scrollRef}
             onScroll={checkScroll}
+            className="flex gap-6 md:gap-8 text-sm font-semibold items-center overflow-x-auto overflow-y-visible scrollbar-hide py-4 w-full"
+            style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}
+          >
+            {Object.keys(groupedMenuList).map((key) => (
+              key === '_HOME_' ? (
+                // [HOME 그룹] - 드롭다운 없이 바로 노출
+                groupedMenuList[key].map((menu) => (
+                  <Link key={menu.menu_id} href={menu.menu_path} className={getMenuClass(menu.menu_path)}>
+                    {menu.menu_name}
+                  </Link>
+                ))
+              ) : (
+                // [일반 카테고리] - 드롭다운 형식
+                <div 
+                  key={key} 
+                  className="group relative cursor-pointer"
+                  onClick={(e) => toggleCategory(e, key)}
+                >
+                  <span className="text-white group-hover:text-blue-400 transition-colors flex items-center gap-1 whitespace-nowrap">
+                    {key} <span className="text-[10px] opacity-50 group-hover:rotate-180 transition-transform">▼</span>
+                  </span>
+                  
+                  {/* 드롭다운 박스 */}
+                  {/* <div className="absolute hidden group-hover:block top-[calc(100%-5px)] left-0 bg-slate-800 shadow-2xl rounded-md min-w-[200px] py-3 border border-slate-700 z-[9999]">
+                    {groupedMenuList[key].map((menu) => (
+                      <Link 
+                        key={menu.menu_id} 
+                        href={menu.menu_path} 
+                        className={`block px-5 py-2.5 text-[13px] transition-all ${pathname === menu.menu_path ? 'text-blue-400 bg-slate-700/50' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}
+                      >
+                        {menu.menu_name}
+                      </Link>
+                    ))}
+                  </div> */}
+                </div>
+              )
+            ))}
+          </nav>
+          {/* 최상위 모달 레이어 */}
+          {activeCategory && activeCategory !== '_HOME_' && (
+            // <div 
+            //   className="fixed inset-0 z-[9999]" 
+            //   onMouseMove={() => setActiveCategory(null)} // 배경 영역에 가면 닫힘
+            // >
+              <div 
+                className="fixed bg-slate-800 shadow-2xl rounded-md min-w-[200px] py-3 border border-slate-700 animate-in fade-in slide-in-from-top-1"
+                style={{ 
+                  top: `${modalPos.top + 5}px`, 
+                  left: `${modalPos.left}px` 
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {groupedMenuList[activeCategory].map((menu: any) => (
+                  <Link 
+                    key={menu.menu_id} 
+                    href={menu.menu_path}
+                    onClick={() => setActiveCategory(null)}
+                    className="block px-5 py-2.5 text-slate-300 hover:bg-slate-700 hover:text-blue-400 text-[13px] transition-all"
+                  >
+                    {menu.menu_name}
+                  </Link>
+                ))}
+              </div>
+            // </div>
+          )}
+
+          {/* <nav 
+            ref={scrollRef}
+            onScroll={checkScroll}
             className="flex gap-6 md:gap-8 text-sm font-semibold items-center overflow-x-auto scrollbar-hide"
             style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }} // 스크롤바 숨기기
           >
@@ -221,7 +364,7 @@ export default function Navbar() {
                 {menu.menu_name}
               </Link>
             ))}
-          </nav>
+          </nav> */}
 
           {/* 오른쪽 화살표 버튼 */}
           {showRightArrow && (
