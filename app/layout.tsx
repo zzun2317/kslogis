@@ -8,6 +8,7 @@ import SessionGuard from '@/components/SessionGuard';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import Script from 'next/script';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
+  const KAKAO_KEY = process.env.NEXT_PUBLIC_KAKAO_JS_KEY;
   
   useEffect(() => {
     // 앱이 처음 켜질 때 세션 확인이 끝날 때까지 화면을 안 보여줌
@@ -41,38 +43,55 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     check();
   }, []);
   // if (!isInitialized) {
-  if (!isInitialized) {  
-    return (
-      <html lang="ko">
-        <body className="bg-white" /> 
-      </html>
-    );
-  }
+  // if (!isInitialized) {  
+  //   return (
+  //     <html lang="ko">
+  //       <body className="bg-white" /> 
+  //     </html>
+  //   );
+  // }
+
   return (
     <html lang="ko" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 text-slate-900`}>
-        {/* 1. AuthHydration이 가장 먼저 브라우저 저장소의 로그인 정보를 복원합니다. */}
-        <AuthHydration>
-          {/* 2. 그 다음 기존의 LayoutContent(경로 감지 로직 등)가 실행됩니다. */}
-          <LayoutContent>
-            <SessionGuard />
-            {children}
+        {/* 1. 스크립트를 조건부 렌더링 밖으로 빼서 항상 로드되게 합니다. */}
+        <Script 
+          src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_KEY}&libraries=services&autoload=false`}
+          strategy="beforeInteractive" 
+        />
 
-          </LayoutContent>
-        </AuthHydration>
+        {/* 2. 초기화 전에는 빈 화면이나 로딩바를 보여주되, 전체 구조는 유지합니다. */}
+        {!isInitialized ? (
+          <div className="bg-white h-screen w-full" />
+        ) : (
+          <AuthHydration>
+            <LayoutContent>
+              <SessionGuard />
+              {children}
+            </LayoutContent>
+          </AuthHydration>
+        )}
       </body>
     </html>
   );
-}
 
-// export default function RootLayout({ children }: { children: React.ReactNode }) {
-//   return (
-//     <html lang="ko">
-//       <body>
-//         {/* ✅ 브라우저 종료 감시자를 여기에 배치 */}
-//         <SessionGuard />
-//         {children}
-//       </body>
-//     </html>
-//   );
-// }
+  // return (
+  //   <html lang="ko" suppressHydrationWarning>
+  //     <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 text-slate-900`}>
+  //       <Script 
+  //         src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_KEY}&libraries=services&autoload=false`}
+  //         strategy="beforeInteractive" 
+  //       />
+  //       {/* 1. AuthHydration이 가장 먼저 브라우저 저장소의 로그인 정보를 복원합니다. */}
+  //       <AuthHydration>
+  //         {/* 2. 그 다음 기존의 LayoutContent(경로 감지 로직 등)가 실행됩니다. */}
+  //         <LayoutContent>
+  //           <SessionGuard />
+  //           {children}
+
+  //         </LayoutContent>
+  //       </AuthHydration>
+  //     </body>
+  //   </html>
+  // );
+}

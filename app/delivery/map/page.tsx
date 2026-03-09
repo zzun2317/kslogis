@@ -85,9 +85,29 @@ export default function DeliveryMapPage() {
   }
 
   useEffect(() => {
+    // if (window.kakao && window.kakao.maps) {
+    //   window.kakao.maps.load(() => { initMap(); });
+    // }
+    const container = mapRef.current;
+  
+    const drawMap = () => {
+      if (window.kakao && window.kakao.maps && container) {
+        // 기존 내용을 비우고 새로 생성 (재진입 시 잔상 방지)
+        container.innerHTML = ''; 
+        const options = { 
+          center: new window.kakao.maps.LatLng(YANGJU_BASE.lat, YANGJU_BASE.lng), 
+          level: 8 
+        };
+        const map = new window.kakao.maps.Map(container, options);
+        setMapInstance(map);
+      }
+    };
+
     if (window.kakao && window.kakao.maps) {
-      window.kakao.maps.load(() => { initMap(); });
+      // 이미 스크립트가 로드된 상태라면 즉시 로드 함수 호출
+      window.kakao.maps.load(drawMap);
     }
+    // 스크립트가 아직 로드 전이라면 Script 컴포넌트의 onLoad가 처리함
   }, []);
 
   const initMap = () => {
@@ -306,11 +326,11 @@ export default function DeliveryMapPage() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-50">
-      <Script 
+      {/* <Script 
         strategy="afterInteractive"
         src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_KEY}&autoload=false&libraries=services`}
         onLoad={() => { if (window.kakao) window.kakao.maps.load(initMap); }}
-      />
+      /> */}
 
       <header className="bg-white border-b border-slate-200 p-4 flex items-center justify-between shadow-sm z-10">
         <div className="flex items-center gap-4">

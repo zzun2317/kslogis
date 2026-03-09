@@ -518,8 +518,8 @@ export default function ExcelUploadPage() {
 
   return (
     <div className={`flex flex-col min-h-screen bg-slate-50 text-slate-900 ${loading ? 'pointer-events-none cursor-wait' : ''}`}>
-      <Script src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_KEY}&libraries=services&autoload=false`} onLoad={() => window.kakao.maps.load()} />
-      <Script src="//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" strategy="lazyOnload" />
+      {/* <Script src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_KEY}&libraries=services&autoload=false`} onLoad={() => window.kakao.maps.load()} />
+      <Script src="//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" strategy="lazyOnload" /> */}
 
       <header className="sticky top-[64px] z-30 bg-white border-b px-8 py-4 shadow-sm flex justify-between items-center">
         <div className="flex items-center gap-6">

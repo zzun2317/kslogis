@@ -175,10 +175,10 @@ export default function DeliveryStatusPage() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-50">
-      <Script 
+      {/* <Script 
         strategy="afterInteractive"
         src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_KEY}&autoload=false&libraries=services`}
-      />
+      /> */}
 
       <header className="bg-white border-b border-slate-200 p-4 flex flex-col gap-4 shadow-sm z-10">
         <div className="flex items-center justify-between">
