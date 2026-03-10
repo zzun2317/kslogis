@@ -235,11 +235,11 @@ export default function CommonCodePage() {
                   <thead className="sticky top-0 bg-slate-50 z-10 border-b text-slate-500">
                     <tr>
                       <th className="p-2 w-20 text-center">코드</th>
-                      <th className="p-2 w-24">명칭(text1)</th>
+                      <th className="p-2">명칭(text1)</th>
                       <th className="p-2 w-24">상세(text2)</th>
                       <th className="p-2 w-12 text-center">사용</th>
                       <th className="p-2 w-12 text-center">정렬</th>
-                      <th className="p-2">설명(memo)</th>
+                      <th className="p-2 w-24">설명(memo)</th>
                       <th className="p-2 w-14 text-center">수정</th>
                     </tr>
                   </thead>

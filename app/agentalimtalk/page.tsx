@@ -69,6 +69,28 @@ export default function KakaoPushAgentPage() {
 
     setLoading(true);
     try {
+      // 1. 중복 매장명 체크 로직 추가
+      // 신규 등록이거나, 수정 중인데 매장명이 바뀐 경우에만 체크합니다.
+      let query = supabase
+        .from('kakao_pushagent')
+        .select('push_agentname')
+        .eq('push_agentname', selectedAgent.push_agentname.trim());
+
+      // 수정(Update) 모드일 때는 자기 자신의 매장명은 중복 체크에서 제외해야 합니다.
+      if (!isNew) {
+        query = query.neq('push_no', selectedAgent.push_no);
+      }
+
+      const { data: existingAgent, error: checkError } = await query.maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existingAgent) {
+        alert('동일한 매장명이 등록되어 있습니다');
+        setLoading(false);
+        return;
+      }
+      
       const payload = {
         push_agentname: selectedAgent.push_agentname,
         push_agenthpno: selectedAgent.push_agenthpno,

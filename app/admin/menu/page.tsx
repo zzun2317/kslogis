@@ -128,11 +128,11 @@ export default function MenuAdminPage() {
   };
 
   // 메뉴 리스트 내의 필드 값을 변경하는 함수
-    const handleMenuFieldChange = (index: number, field: string, value: any) => {
-      const updatedMenus = [...menus];
-      updatedMenus[index] = { ...updatedMenus[index], [field]: value };
-      setMenus(updatedMenus);
-    };
+  const handleMenuFieldChange = (index: number, field: string, value: any) => {
+    const updatedMenus = [...menus];
+    updatedMenus[index] = { ...updatedMenus[index], [field]: value };
+    setMenus(updatedMenus);
+  };
 
   // 메뉴 선택 시 권한 로드 (그룹 & 사용자)
   useEffect(() => {

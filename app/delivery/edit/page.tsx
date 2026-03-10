@@ -252,22 +252,54 @@ export default function DeliveryEditTablePage() {
   const handleBulkDriverUpdate = async () => {
     if (!canEdit) return alert('변경 권한이 없습니다.');
     if (selectedRows.length === 0 || !selectedTargetDriver) return alert('항목과 기사를 선택해주세요.');
+    
     const targetDriver = drivers.find(d => d.driver_id === selectedTargetDriver);
     if (!targetDriver || !confirm(`선택한 ${selectedRows.length}건을 [${targetDriver.driver_name}]님으로 일괄 변경하시겠습니까?`)) return;
 
     setLoading(true);
     try {
       const now = new Date().toISOString();
-      const { error } = await supabase.from('ks_devcustm').update({
-        cust_devid: targetDriver.driver_id,
-        cust_devuuid: targetDriver.driver_uuid,
-        cust_devemail: targetDriver.driver_email,
-        cust_devstatus: '002006', // 배송기사가 지정되면 배차완료 상태로 일괄 변경
-        cust_devdatefix: true,
-        cust_devdatefixtz: now
-      }).in('cust_ordno', selectedRows);
 
-      if (error) throw error;
+      // 1. 선택된 주문번호들에 해당하는 전체 데이터 추출
+      const selectedItems = deliveryData.filter(item => selectedRows.includes(item.cust_ordno));
+
+      // 2. 온라인과 오프라인(그 외) 데이터 분리
+      const onlineOrders = selectedItems.filter(item => item.cust_gubun === '온라인').map(item => item.cust_ordno);
+      const offlineOrders = selectedItems.filter(item => item.cust_gubun !== '온라인').map(item => item.cust_ordno);
+
+      const updatePromises = [];
+
+      // 3. 온라인 건 업데이트 (fix 관련 컬럼 제외)
+      if (onlineOrders.length > 0) {
+        updatePromises.push(
+          supabase.from('ks_devcustm').update({
+            cust_devid: targetDriver.driver_id,
+            cust_devuuid: targetDriver.driver_uuid,
+            cust_devemail: targetDriver.driver_email,
+            cust_devstatus: '002006'
+          }).in('cust_ordno', onlineOrders)
+        );
+      }
+
+      // 4. 오프라인 건 업데이트 (fix 관련 컬럼 포함)
+      if (offlineOrders.length > 0) {
+        updatePromises.push(
+          supabase.from('ks_devcustm').update({
+            cust_devid: targetDriver.driver_id,
+            cust_devuuid: targetDriver.driver_uuid,
+            cust_devemail: targetDriver.driver_email,
+            cust_devstatus: '002006',
+            cust_devdatefix: true,
+            cust_devdatefixtz: now
+          }).in('cust_ordno', offlineOrders)
+        );
+      }
+
+      // 5. 모든 업데이트 실행
+      const results = await Promise.all(updatePromises);
+      const firstError = results.find(r => r.error)?.error;
+      if (firstError) throw firstError;
+
       alert(`✅ 변경되었습니다.`);
       await fetchDeliveryData();
     } catch (err: any) {
@@ -393,9 +425,10 @@ export default function DeliveryEditTablePage() {
 
     // 배송상태가 '배차취소'면 기사 정보 초기화, 아니면 기존 기사 정보 유지
     const isCancelAssign = item.cust_devstatus === '002007'; 
+    const isOnline = item.cust_gubun === '온라인';
 
     try {
-      const { error } = await supabase.from('ks_devcustm').update({
+      const updateData: any = {
         cust_devdate: item.cust_devdate,
         cust_reqdate: item.cust_reqdate,
         cust_name: item.cust_name,
@@ -414,14 +447,29 @@ export default function DeliveryEditTablePage() {
         // cust_devid: updatedDevId, // 배송상태에 따른 기사 정보 업데이트
         cust_devcenter: item.cust_devcenter,
         cust_devstatus: item.cust_devstatus 
-      }).eq('cust_ordno', item.cust_ordno);
+      };
+
+      // 온라인 주문건이 배차취소될 때 고정 상태 해제
+      if (isOnline && isCancelAssign) {
+        updateData.cust_devdatefix = false;
+        // 필요하다면 타임스탬프도 초기화할 수 있습니다.
+        // updateData.cust_devdatefixtz = null; 
+      }
+
+      const { error } = await supabase
+        .from('ks_devcustm')
+        .update(updateData)
+        .eq('cust_ordno', item.cust_ordno);
       
       if (error) throw error;
+
       alert(`✅ 저장되었습니다.`);
       const newOriginalData = [...originalData];
       newOriginalData[index] = JSON.parse(JSON.stringify(item));
       setOriginalData(newOriginalData);
-    } catch (err: any) { alert('저장 실패: ' + err.message); }
+    } catch (err: any) { 
+      alert('저장 실패: ' + err.message); 
+    }
   };
 
   // --- 스타일 정의 ---
@@ -614,13 +662,15 @@ export default function DeliveryEditTablePage() {
               </button>
 
               {/* 온라인 기사 자동 지정 버튼 추가 */}
-              <button 
-                onClick={handleAutoAssignOnlineDriver} 
-                disabled={loading || deliveryData.length === 0}
-                className="bg-blue-50 text-blue-700 border border-blue-200 px-4 py-2 rounded-xl font-black text-xs hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50 shadow-sm flex items-center gap-2"
-              >
-                <span className="text-blue-500">⚡</span> 온라인 배송기사 지정
-              </button>
+              {userCenterList?.map(String).includes('004001') && (
+                <button 
+                  onClick={handleAutoAssignOnlineDriver} 
+                  disabled={loading || deliveryData.length === 0}
+                  className="bg-blue-50 text-blue-700 border border-blue-200 px-4 py-2 rounded-xl font-black text-xs hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50 shadow-sm flex items-center gap-2"
+                >
+                  <span className="text-blue-500">⚡</span> 온라인 배송기사 지정
+                </button>
+              )}
 
               {/* 조회 버튼 */}
               <button onClick={fetchDeliveryData} disabled={loading} className="bg-slate-900 text-white px-5 py-2 rounded-xl font-black text-xs hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg">

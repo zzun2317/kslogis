@@ -97,7 +97,7 @@ export default function UserRegisterPage() {
     if (!formData.emailId) { refs.emailId.current?.focus(); return alert('이메일을 입력하세요.'); }
     if (!emailSuccess) { return alert('이메일 중복확인을 해주세요.'); }
     if (!formData.userName) { refs.userName.current?.focus(); return alert('성명을 입력하세요.'); }
-    if (!formData.password || formData.password.length < 6) { refs.password.current?.focus(); return alert('비밀번호를 6자 이상 입력하세요.'); }
+    if (!formData.password || formData.password.length < 6) { refs.password.current?.focus(); return alert('비밀번호를 숫자+영문 6자 이상 입력하세요.'); }
     if (!formData.userHpno) { refs.userHpno.current?.focus(); return alert('연락처를 입력하세요.'); }
     
     // ✨ 수정한 체크 로직: DRIVER_ROLE_CODE 인 경우 체크
@@ -124,8 +124,8 @@ export default function UserRegisterPage() {
       full_email: fullEmail.trim()
     };
 
-    console.log("------- 💾 저장 요청 데이터 확인 -------");
-    console.table(debugData); 
+    // console.log("------- 💾 저장 요청 데이터 확인 -------");
+    // console.table(debugData); 
     // ------------------------------------------
 
     setLoading(true);
