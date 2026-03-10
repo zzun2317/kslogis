@@ -59,6 +59,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           src={`//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_KEY}&libraries=services&autoload=false`}
           strategy="beforeInteractive" 
         />
+        <Script 
+          src="//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js" 
+          strategy="lazyOnload" 
+        />
 
         {/* 2. 초기화 전에는 빈 화면이나 로딩바를 보여주되, 전체 구조는 유지합니다. */}
         {!isInitialized ? (

@@ -514,10 +514,10 @@ export default function ExcelUploadPage() {
   };
 
   const handleSaveToDB = async () => {
-    console.log("=== 저장 프로세스 시작 ===");
-    console.log("1. 현재 로그인 된 유저 ID (userId):", userId);
-    console.log("2. 검증 완료 여부 (isValidated):", isValidated);
-    console.log("3. 발견된 에러 개수 (errors.length):", errors.length);
+    // console.log("=== 저장 프로세스 시작 ===");
+    // console.log("1. 현재 로그인 된 유저 ID (userId):", userId);
+    // console.log("2. 검증 완료 여부 (isValidated):", isValidated);
+    // console.log("3. 발견된 에러 개수 (errors.length):", errors.length);
     if (errors.length > 0) {
       alert("검증 완료 후 진행해 주세요.");
       return;
