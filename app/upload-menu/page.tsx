@@ -85,6 +85,12 @@ export default function ExcelUploadPage() {
     setLoadingText('엑셀 파일을 읽는 중...');
     setFileName(file.name);
 
+    // 검증처리 변수 초기화
+    setRegCnt(0);      // 검증 횟수 초기화
+    setRefixCnt(0);    // 남은 에러 수 초기화
+    setErrors([]);     // 에러 목록 초기화
+    setIsValidated(false); // 검증 완료 상태 초기화
+
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
@@ -186,6 +192,7 @@ export default function ExcelUploadPage() {
   const handleValidate = async () => {
     setLoading(true);
     setLoadingText('배송정보, 차량 코드 매핑 및 주소 좌표를 검증 중입니다...');
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     const newErrors: ValidationError[] = [];
     // const updatedData = [...previewData];
@@ -228,12 +235,33 @@ export default function ExcelUploadPage() {
       // 이미 존재하는 수주번호를 Set으로 저장 (검색 속도 향상)
       const existingOrderSet = new Set(existingOrders?.map(item => item.cust_ordno));
 
+      let targetOrderNos: string[] = [];
+      if (regCnt === 0) {
+        targetOrderNos = Array.from(new Set(updatedData.map((row: any) => String(row['수주번호'] || '').trim())));
+        console.log("최초 검증: 전체 데이터를 검증합니다.");
+      } else {
+        // 기존 에러 목록에서 수주번호 추출
+        const errorIndices = new Set(errors.map(e => e.row));
+        targetOrderNos = Array.from(new Set(
+          updatedData
+            .filter((_, idx) => errorIndices.has(idx))
+            .map((row: any) => String(row['수주번호'] || '').trim())
+        ));
+        console.log(`재검증: 에러가 발생한 ${targetOrderNos.length}건의 수주번호만 검증합니다.`);
+      }
+
+      if (targetOrderNos.length === 0) {
+        alert("검증할 대상이 없습니다.");
+        setLoading(false);
+        return;
+      }
+
       // 2. 수주번호(주문번호) 기준으로 유니크한 목록 생성 (시간 단축)
       // const uniqueOrders = Array.from(new Set(updatedData.map(row => row['수주번호'])));
-      const uniqueOrders = Array.from(new Set(updatedData.map((row: any) => String(row['수주번호'] || '').trim())));
+      // const uniqueOrders = Array.from(new Set(updatedData.map((row: any) => String(row['수주번호'] || '').trim())));
       const BATCH_SIZE = 40; // 40건씩 묶어서 병렬 처리
-      for (let i = 0; i < uniqueOrders.length; i += BATCH_SIZE) {
-        const batch = uniqueOrders.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < targetOrderNos.length; i += BATCH_SIZE) {
+        const batch = targetOrderNos.slice(i, i + BATCH_SIZE);
         
         await Promise.all(batch.map(async (orderNo) => {
           // const firstRowIndex = updatedData.findIndex(r => r['수주번호'] === orderNo);
@@ -321,7 +349,13 @@ export default function ExcelUploadPage() {
               if (coords.zoneNo) {
                 row['우편번호'] = coords.zoneNo;
               }
-              
+            }
+            else {
+              newErrors.push({ 
+                row: firstRowIndex, 
+                column: '주소1', 
+                message: '위치 좌표를 찾을 수 없는 주소입니다. 주소를 확인해 주세요.' 
+              });
             }
           }
 
@@ -345,33 +379,35 @@ export default function ExcelUploadPage() {
 
           // updatedData.forEach((item, idx) => {
           updatedData.forEach((item: any, idx: number) => {
-          if (String(item['수주번호']).trim() === String(orderNo).trim()) {
-            updatedData[idx]['휴대전화번호'] = row['휴대전화번호'];
-            updatedData[idx].cust_devcenter = mappedCenterCode;
-            updatedData[idx]['주소1'] = row['주소1'];
-            updatedData[idx]['우편번호'] = row['우편번호'];
-            updatedData[idx].cust_lat = cust_lat;
-            updatedData[idx].cust_lng = cust_lng;
-            if (isDuplicate) {
-              const currentMemo = updatedData[idx]['마스터비고'] || '';
-              if (!currentMemo.includes(duplicateMemo)) {
-                // 기존 비고가 있으면 띄어쓰기 후 추가, 없으면 바로 추가
-                updatedData[idx]['마스터비고'] = currentMemo 
-                  ? `${currentMemo} (${duplicateMemo})` 
-                  : duplicateMemo;
+              if (String(item['수주번호']).trim() === String(orderNo).trim()) {
+                updatedData[idx]['휴대전화번호'] = row['휴대전화번호'];
+                updatedData[idx].cust_devcenter = mappedCenterCode;
+                updatedData[idx]['주소1'] = row['주소1'];
+                updatedData[idx]['우편번호'] = row['우편번호'];
+                updatedData[idx].cust_lat = cust_lat;
+                updatedData[idx].cust_lng = cust_lng;
+                if (isDuplicate) {
+                  const currentMemo = updatedData[idx]['마스터비고'] || '';
+                  if (!currentMemo.includes(duplicateMemo)) {
+                    // 기존 비고가 있으면 띄어쓰기 후 추가, 없으면 바로 추가
+                    updatedData[idx]['마스터비고'] = currentMemo 
+                      ? `${currentMemo} (${duplicateMemo})` 
+                      : duplicateMemo;
+                  }
+                }
+                
+                // 대표 행 이외의 행들에 대해서도 필수값 에러가 있다면 추가 (선택 사항)
+                // 여기서는 수주번호가 같으면 주소/날짜가 같다고 가정하므로 생략 가능
               }
-            }
-            
-            // 대표 행 이외의 행들에 대해서도 필수값 에러가 있다면 추가 (선택 사항)
-            // 여기서는 수주번호가 같으면 주소/날짜가 같다고 가정하므로 생략 가능
-          }
-        });
+          });
 
-        }));
+        }
+        ));
         
         // 처리 중임을 알리기 위해 로딩 텍스트 업데이트
+        await new Promise(resolve => setTimeout(resolve, 0));
         setLoadingText(`${i + batch.length}건 검증 중...`);
-      }
+      } // for (let i = 0; i < targetOrderNos.length; i += BATCH_SIZE) {
 
       // 3. 상태 업데이트
       setPreviewData(updatedData);
@@ -395,39 +431,70 @@ export default function ExcelUploadPage() {
   };
 
   const openPostcode = (rowIndex: number) => {
-    if (!window.kakao || !window.kakao.Postcode) {
-      alert("주소 서비스 스크립트가 아직 로드되지 않았습니다.");
+    const Postcode = window.daum?.Postcode || window.kakao?.Postcode;
+    if (!Postcode) {
+      alert("주소 서비스 스크립트가 로드되지 않았습니다.");
       return;
     }
 
-    new window.kakao.Postcode({
-      oncomplete: (data: any) => {
-        const finalAddress = data.roadAddress || data.address;
-        const postNo = data.zonecode;
+    // 1: 현재 행의 기존 주소값을 가져와서 검색창 초기값으로 사용
+    const row = previewData[rowIndex];
+    const fullAddress = row ? row['주소1'] : '';
+    let searchQ = fullAddress.split('(')[0].trim();
+    const addrParts = searchQ.split(' ');
+    if (addrParts.length > 4) {
+      searchQ = addrParts.slice(0, 4).join(' ');
+    }
 
-        // ✅ 방법 1: 직접 previewData 상태를 업데이트 (가장 확실한 방법)
-        // handleCellChange를 두 번 부르면 이전 상태를 덮어쓸 수 있으므로 직접 처리합니다.
+    new Postcode({
+      // 2: 팝업이 열릴 때 기존 주소가 입력되어 있도록 설정
+      q: searchQ,
+      oncomplete: async (data: any) => {
+        console.log("선택된 주소 데이터:", data);
+        const selectedAddr = data.roadAddress || data.address; // 정제된 주소
+        const postNo = data.zonecode;
+        
+        let detailPart = '';
+        const searchIdx = fullAddress.indexOf(searchQ);
+        if (searchIdx !== -1) {
+          // searchQ 이후의 문자열을 가져옴
+          detailPart = fullAddress.substring(searchIdx + searchQ.length).trim();
+        }
+
+        // 정제주소 + 상세주소 결합
+        // 상세주소가 이미 존재한다면 한 칸 띄우고 결합
+        const finalCombinedAddress = detailPart 
+          ? `${selectedAddr} ${detailPart}` 
+          : selectedAddr;
+
+        console.log("최종 결합 주소:", finalCombinedAddress);
+
+        // 좌표 정보는 '정제된 주소' 기준으로 가져오는 것이 가장 정확
+        const coords = await getCoordinates(selectedAddr);
+
         setPreviewData(prev => {
           const newData = [...prev];
           const targetOrderNo = newData[rowIndex]['수주번호'];
 
-          // 같은 수주번호를 가진 모든 행을 한꺼번에 업데이트
           return newData.map(item => {
             if (item['수주번호'] === targetOrderNo) {
               return {
                 ...item,
-                '주소1': finalAddress,
-                '우편번호': postNo
+                '주소1': finalCombinedAddress, // 결합된 주소 입력
+                '우편번호': postNo,
+                'lat': coords.lat,
+                'lng': coords.lng
               };
             }
             return item;
           });
         });
 
-        // ✅ 검증 상태 초기화 (주소가 바뀌었으므로 다시 검증하게 함)
         setIsValidated(false);
       }
-    }).open();
+    }).open({
+      q: searchQ
+    });
   };
 
   // const openPostcode = (rowIndex: number) => {
@@ -526,6 +593,7 @@ export default function ExcelUploadPage() {
     
     setLoading(true);
     setLoadingText('데이터베이스에 저장 중...');
+    await new Promise(resolve => setTimeout(resolve, 100));
     try {
       const { error } = await supabase.rpc('process_excel_upload', {
         p_user_id: userId,
@@ -565,12 +633,22 @@ export default function ExcelUploadPage() {
   };
 
   const handleDeleteSelected = () => {
+    if (selectedRows.size === 0) {
+      alert("삭제할 항목을 선택해 주세요.");
+      return;
+    }
     const selectedIndices = Array.from(selectedRows);
-    const selectedOrderNos = new Set(selectedIndices.map(idx => previewData[idx]['수주번호']));
+    const selectedOrderNos = new Set(
+      selectedIndices
+        .map(idx => previewData[idx]['수주번호'])
+        .filter(ordNo => ordNo !== undefined && ordNo !== null && String(ordNo).trim() !== '')
+  );
     
     // 예외 처리: 체크되지 않은 행들 중, 체크된 수주번호와 동일한 수주번호가 있는지 확인
     const hasIncompleteOrder = previewData.some((row, idx) => {
-      return !selectedRows.has(idx) && selectedOrderNos.has(row['수주번호']);
+      const ordNo = row['수주번호'];
+      const isOrdNoEmpty = !ordNo || String(ordNo).trim() === '';
+      return !isOrdNoEmpty && !selectedRows.has(idx) && selectedOrderNos.has(ordNo);
     });
 
     if (hasIncompleteOrder) {

@@ -56,7 +56,7 @@ export default function DeliveryMapPage() {
 
       let query = supabase
         .from('ks_driver')
-        .select('driver_id, driver_name, driver_email, driver_center')
+        .select('driver_id, driver_name, driver_email, driver_center, driver_carno')
         .order('driver_name');
 
       // 001003(USER) 권한일 경우 본인 센터 기사만 필터링
@@ -353,7 +353,7 @@ export default function DeliveryMapPage() {
               <option value="" className="text-slate-400">배송 기사 선택</option>
               {drivers.map(d => (
                 <option key={d.driver_id} value={d.driver_id} className="text-slate-900">
-                  {d.driver_name} ({d.driver_center})
+                  {d.driver_name}{d.driver_carno ? `[${d.driver_carno}]` : ''}
                 </option>
               ))}
             </select>

@@ -141,7 +141,7 @@ export default function DeliveryEditTablePage() {
     
     const fetchCommonData = async () => {
       // 기사 목록 로드
-      const { data: drv } = await supabase.from('ks_driver').select('driver_id, driver_name, driver_email, driver_center, driver_uuid').order('driver_name');
+      const { data: drv } = await supabase.from('ks_driver').select('driver_id, driver_name, driver_email, driver_center, driver_uuid, driver_carno').order('driver_name');
       if (drv) setDrivers(drv);
       // 물류사 코드(004) 로드
       const { data: dc } = await supabase.from('ks_common').select('comm_ccode, comm_text1').eq('comm_mcode', '004').order('comm_ccode');
@@ -651,7 +651,7 @@ export default function DeliveryEditTablePage() {
                 className={`${filterInputStyle} border-blue-200 bg-blue-50/50 text-blue-700 min-w-[120px] disabled:opacity-50`}
               >
                 <option value="">기사 선택</option>
-                {filteredDriverList.map((d) => (<option key={d.driver_id} value={d.driver_id}>[{d.driver_center}] {d.driver_name}</option>))}
+                {filteredDriverList.map((d) => (<option key={d.driver_id} value={d.driver_id}>{d.driver_name}[{d.driver_carno}]</option>))}
               </select>
               <button 
                 onClick={handleBulkDriverUpdate} 
