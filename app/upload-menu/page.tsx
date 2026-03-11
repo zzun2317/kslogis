@@ -379,30 +379,28 @@ export default function ExcelUploadPage() {
 
           // updatedData.forEach((item, idx) => {
           updatedData.forEach((item: any, idx: number) => {
-              if (String(item['수주번호']).trim() === String(orderNo).trim()) {
-                updatedData[idx]['휴대전화번호'] = row['휴대전화번호'];
-                updatedData[idx].cust_devcenter = mappedCenterCode;
-                updatedData[idx]['주소1'] = row['주소1'];
-                updatedData[idx]['우편번호'] = row['우편번호'];
-                updatedData[idx].cust_lat = cust_lat;
-                updatedData[idx].cust_lng = cust_lng;
-                if (isDuplicate) {
-                  const currentMemo = updatedData[idx]['마스터비고'] || '';
-                  if (!currentMemo.includes(duplicateMemo)) {
-                    // 기존 비고가 있으면 띄어쓰기 후 추가, 없으면 바로 추가
-                    updatedData[idx]['마스터비고'] = currentMemo 
-                      ? `${currentMemo} (${duplicateMemo})` 
-                      : duplicateMemo;
-                  }
+            if (String(item['수주번호']).trim() === String(orderNo).trim()) {
+              updatedData[idx]['휴대전화번호'] = row['휴대전화번호'];
+              updatedData[idx].cust_devcenter = mappedCenterCode;
+              updatedData[idx]['주소1'] = row['주소1'];
+              updatedData[idx]['우편번호'] = row['우편번호'];
+              updatedData[idx].cust_lat = cust_lat;
+              updatedData[idx].cust_lng = cust_lng;
+              if (isDuplicate) {
+                const currentMemo = updatedData[idx]['마스터비고'] || '';
+                if (!currentMemo.includes(duplicateMemo)) {
+                  // 기존 비고가 있으면 띄어쓰기 후 추가, 없으면 바로 추가
+                  updatedData[idx]['마스터비고'] = currentMemo 
+                    ? `${currentMemo} (${duplicateMemo})` 
+                    : duplicateMemo;
                 }
+              }
                 
                 // 대표 행 이외의 행들에 대해서도 필수값 에러가 있다면 추가 (선택 사항)
                 // 여기서는 수주번호가 같으면 주소/날짜가 같다고 가정하므로 생략 가능
-              }
+            }
           });
-
-        }
-        ));
+        }));
         
         // 처리 중임을 알리기 위해 로딩 텍스트 업데이트
         await new Promise(resolve => setTimeout(resolve, 0));

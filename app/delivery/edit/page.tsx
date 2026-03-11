@@ -228,7 +228,7 @@ export default function DeliveryEditTablePage() {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, reqDate, gubun, searchDevcenter, searchStatus, custName, hp, address, driver, user, userCenterList]);
+  }, [dateSearchType, startDate, endDate, reqDate, gubun, searchDevcenter, searchStatus, custName, hp, address, driver, user, userCenterList]);
   // ↑ useCallback의 중괄호와 대괄호가 여기서 정확히 닫혀야 합니다.
 
   // --- 자동 조회를 위한 useEffect (함수 밖으로 완전히 분리) ---
@@ -401,20 +401,97 @@ export default function DeliveryEditTablePage() {
     return JSON.stringify(current) !== JSON.stringify(original);
   };
 
+  // 주소정제
+  const getCoordinates = async (address: string): Promise<{
+    lat: number | null, 
+    lng: number | null, 
+    refinedAddress: string | null, 
+    zoneNo: string | null
+  }> => {
+    return new Promise((resolve) => {
+      // 1. kakao 객체 자체가 없을 때 (스크립트 로딩 실패 등)
+      if (!window.kakao || !window.kakao.maps) {
+        console.error("카카오 맵 스크립트가 로드되지 않았습니다.");
+        resolve({ lat: null, lng: null, refinedAddress: null, zoneNo: null });
+        return;
+      }
+
+      // 2. autoload=false 대응: load 콜백 내부에서 실행
+      window.kakao.maps.load(() => {
+        // 3. services 라이브러리 존재 확인
+        if (!window.kakao.maps.services) {
+          console.error("카카오 맵 'services' 라이브러리가 누락되었습니다. (URL 파라미터 확인)");
+          resolve({ lat: null, lng: null, refinedAddress: null, zoneNo: null });
+          return;
+        }
+
+        const geocoder = new window.kakao.maps.services.Geocoder();
+        const words = address.trim().split(' ');
+
+        // [기존 재귀 검색 로직 시작]
+        const searchAddress = (currentAddress: string, wordCount: number) => {
+          geocoder.addressSearch(currentAddress, (result: any, status: any) => {
+            if (status === window.kakao.maps.services.Status.OK && result.length > 0) {
+              const addrInfo = result[0];
+              resolve({ 
+                lat: parseFloat(addrInfo.y), 
+                lng: parseFloat(addrInfo.x),
+                refinedAddress: addrInfo.address_name,
+                zoneNo: addrInfo.road_address ? addrInfo.road_address.zone_code : (addrInfo.address ? addrInfo.address.zip_code : null)
+              });
+            } else if (wordCount > 1) {
+              const nextAddress = words.slice(0, wordCount - 1).join(' ');
+              searchAddress(nextAddress, wordCount - 1);
+            } else {
+              resolve({ lat: null, lng: null, refinedAddress: null, zoneNo: null });
+            }
+          });
+        };
+        searchAddress(address, words.length);
+      });
+    });
+  };
+
   // --- 카카오 주소 검색 연동 ---
   const handleAddressSearch = (index: number) => {
-    if (!canEdit) return; 
+    if (!canEdit) return;
     if (!(window as any).kakao) return;
+
     new (window as any).kakao.Postcode({
-      oncomplete: function(data: any) {
-        let fullAddr = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
+      oncomplete: async function (data: any) {
+        const fullAddr = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
         const zoneCode = data.zonecode;
+
+        // 🌟 검증 화면에서 썼던 좌표 및 정제 로직 호출
+        const coords = await getCoordinates(fullAddr);
+
         const newData = [...deliveryData];
-        newData[index].display_addr = fullAddr;
+        
+        if (coords.lat && coords.lng && coords.refinedAddress) {
+          const refined = coords.refinedAddress.trim();
+          const original = fullAddr.trim();
+          
+          // 상세 주소 분리 로직
+          let detailPart = '';
+          const startIndex = original.indexOf(refined);
+          if (startIndex !== -1) {
+            detailPart = original.substring(startIndex + refined.length).trim();
+          }
+
+          // 데이터 업데이트
+          newData[index].display_addr = refined; // 정제된 도로명/지번
+          newData[index].detail_addr = detailPart; // 나머지 상세주소
+          newData[index].cust_lat = coords.lat;   // 좌표 저장 (필요시)
+          newData[index].cust_lng = coords.lng;
+        } else {
+          // 좌표 획득 실패 시 기본값
+          newData[index].display_addr = fullAddr;
+        }
+
         newData[index].cust_postno = zoneCode;
         setDeliveryData(newData);
-        setTimeout(() => document.getElementById(`detail-addr-${index}`)?.focus(), 100);
         
+        setTimeout(() => document.getElementById(`detail-addr-${index}`)?.focus(), 100);
       }
     }).open();
   };
@@ -436,6 +513,9 @@ export default function DeliveryEditTablePage() {
         cust_hpno2: item.cust_hpno2, 
         cust_address: item.display_addr,
         cust_address2: item.detail_addr,
+        cust_lat: item.cust_lat,
+        cust_lng: item.cust_lng,
+        cust_postno: item.cust_postno,
         cust_devcost: item.cust_devcost,
         cust_devmemo: item.cust_devmemo,
         cust_memo: item.cust_memo,      

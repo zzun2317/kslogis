@@ -212,7 +212,7 @@ export default function DeliveryAdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchGubun, userCenterList, searchCenter, searchStatus]); //, searchName, searchHp, searchDriver, searchAddr, startDate, endDate
+  }, [dateSearchType, searchGubun, userCenterList, searchCenter, searchStatus]); //, searchName, searchHp, searchDriver, searchAddr, startDate, endDate
 
   useEffect(() => {
     fetchDeliveryData();
