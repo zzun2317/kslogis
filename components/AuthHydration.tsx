@@ -21,20 +21,22 @@ export default function AuthHydration({ children }: { children: React.ReactNode 
         const user_name = sessionStorage.getItem('user_name') || '사용자'; // driver_name
 
         if (!user_role) {
-          const user = session.user;
-          const user_role = user.user_metadata?.user_role;
-          const user_center = user.user_metadata?.user_center;
-          const user_name = user.user_metadata?.user_name;
-        }
+          // 1. 메타데이터에서 안전하게 값 추출 (기본값 설정)
+          const meta = session.user.user_metadata || {};
+          const user_name = meta.user_name || '이름없음';
+          const user_id = meta.user_id || '';
+          const user_center_meta = meta.user_center || '';
+          const user_level = Number(meta.user_level || 0);
 
-        if (user_role) {
-          // 스토어에 데이터 복구 -> 이 작업이 완료되어야 메뉴가 뜹니다!
+          // 2. 스토어(useAuthStore)의 User 인터페이스 규격에 완벽히 맞춤
           setAuth({
             id: session.user.id,
-            email: session.user.email,
-            userName: user_name,
-            user_center: user_center,
-          }, user_role);
+            email: session.user.email || '',
+            user_name: user_name,       // userName -> user_name 으로 수정
+            user_id: user_id,           // 추가 (Store 필수값)
+            user_center: user_center || user_center_meta, // 기존 변수 혹은 메타데이터 사용
+            user_level: user_level,     // 추가 (Store 필수값)
+          }, user_role|| '001003');
         } else {
           // 세션은 있는데 권한 정보가 없다면 다시 로그인 시키거나 정보를 새로 불러와야 함
           console.warn("세션은 존재하나 권한 정보가 없어 초기화합니다.");
