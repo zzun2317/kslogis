@@ -183,6 +183,7 @@ export default function SignUpPage() {
     if (!idSuccess) { alert('아이디 중복 확인이 필요합니다.'); userIdRef.current?.focus(); return; }
     if (!emailSuccess) { alert('이메일 중복 확인이 필요합니다.'); emailIdRef.current?.focus(); return; }
     if (!isPasswordValid) { alert('비밀번호는 숫자+영문 6자 이상이어야 합니다.'); passwordRef.current?.focus(); return; }
+    if (!selectedCenter) { alert('소속 센터를 선택해주세요.'); return; }
 
     setLoading(true);
     try {

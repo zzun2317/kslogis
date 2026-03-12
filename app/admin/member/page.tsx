@@ -15,6 +15,15 @@ interface CommonCodesState {
   areas: CommonCode[];
 }
 
+// Role 코드별 최대 허용 레벨 정의
+const ROLE_LEVEL_CONFIG: { [key: string]: { default: number, max: number } } = {
+  '001001': { default: 100, max: 100 }, // superadmin
+  '001002': { default: 80, max: 99 },   // admin (superadmin 미만까지 조정 가능)
+  '001003': { default: 50, max: 79 },   // user (admin 미만까지 조정 가능)
+  '001004': { default: 10, max: 30 },   // driver (관리자가 지정한 '권한 기사' 최대치 30)
+  '001005': { default: 1, max: 9 }      // guest
+};
+
 export default function UserManagePage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,13 +66,19 @@ export default function UserManagePage() {
 
   const handleUpdateUser = async () => {
     try {
+      const maxAllowed = ROLE_LEVEL_CONFIG[editFormData.user_role]?.max || 100;
+      if (editFormData.user_level > maxAllowed) {
+        alert(`해당 권한으로는 레벨 ${maxAllowed}을(를) 초과할 수 없습니다.`);
+        return;
+      }
       // 1. ks_users 공통 업데이트
       const { error: userError } = await supabase
         .from('ks_users')
         .update({
           user_hpno: editFormData.user_hpno,
           user_role: editFormData.user_role,
-          user_center: editFormData.user_center
+          user_center: editFormData.user_center,
+          user_level: editFormData.user_level
         })
         .eq('user_id', editFormData.user_id);
 
@@ -207,8 +222,9 @@ export default function UserManagePage() {
                 <th className={headerStyle}>연락처</th>
                 <th className={headerStyle}>이메일</th>
                 <th className={headerStyle}>권한</th>
+                <th className={headerStyle}>권한레벨</th>
                 <th className={headerStyle}>물류센터</th>
-                <th className={headerStyle}>동의여부</th>
+                <th className={headerStyle}>개인정보활용동의</th>
                 <th className={`${headerStyle} w-20`}>관리</th>
               </tr>
             </thead>
@@ -223,6 +239,11 @@ export default function UserManagePage() {
                   <td className={dataCellStyle}>
                     <span className="bg-slate-100 px-2 py-1 rounded text-[11px] font-bold">
                       {user.role_info?.comm_text1 || user.user_role}
+                    </span>
+                  </td>
+                  <td className={dataCellStyle}>
+                    <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-[11px] font-black border border-blue-100">
+                      {user.user_level ?? '-'}
                     </span>
                   </td>
                   <td className={dataCellStyle}>{user.center_info?.comm_text1 || user.user_center}</td>
@@ -327,6 +348,47 @@ export default function UserManagePage() {
                           ))}
                         </select>
                     </div>
+                    {/* 기사 권한 레벨 슬라이더 추가 (grid 하단 2칸 차지) */}
+                    <div className="col-span-2 py-4 border-t border-slate-100 mt-2">
+                      <div className="flex justify-between items-end mb-3">
+                        <div>
+                          <label className="block text-[10px] font-black text-slate-400 uppercase mb-0.5">
+                            배송기사 권한 레벨 조정
+                          </label>
+                          <p className="text-[9px] text-slate-400 font-medium">
+                            * 배송기사는 웹 접근을 위해 최대 30레벨까지 상향 가능합니다.
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="text-[10px] font-black text-blue-500 uppercase">Current Level</span>
+                          <span className="text-xl font-black text-blue-600 leading-none">
+                            {editFormData.user_level || 10}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="relative flex items-center px-1">
+                        <input
+                          type="range"
+                          min="1"
+                          max={ROLE_LEVEL_CONFIG['001004']?.max || 30} // 기사 코드 직접 지정
+                          step="1"
+                          value={editFormData.user_level || 10}
+                          onChange={(e) => setEditFormData({
+                            ...editFormData, 
+                            user_level: parseInt(e.target.value)
+                          })}
+                          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                        />
+                      </div>
+                      
+                      <div className="flex justify-between mt-2">
+                        <span className="text-[10px] font-black text-slate-300">LV. 1</span>
+                        <span className="text-[10px] font-black text-slate-300">
+                          MAX. {ROLE_LEVEL_CONFIG['001004']?.max || 30}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -352,6 +414,51 @@ export default function UserManagePage() {
                       {commonCodes.centers.map(c => <option key={c.comm_ccode} value={c.comm_ccode}>{c.comm_text1}</option>)}
                     </select>
                   </div>
+                  {/* 권한 레벨 설정 슬라이더 */}
+                  <div className="col-span-2 py-4 border-t border-slate-100 mt-2">
+                    <div className="flex justify-between items-end mb-3">
+                      <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-0.5">
+                          권한 레벨 조정
+                        </label>
+                        <p className="text-[9px] text-slate-400 font-medium">
+                          {editFormData.user_role === '001004' 
+                            ? "* 배송기사는 최대 30레벨까지만 상향 가능합니다." 
+                            : "* 선택된 권한의 허용 범위 내에서만 조절 가능합니다."}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span className="text-[10px] font-black text-blue-500 uppercase">Current Level</span>
+                        <span className="text-xl font-black text-blue-600 leading-none">
+                          {editFormData.user_level || 10}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="relative flex items-center px-1">
+                      <input
+                        type="range"
+                        min="1"
+                        // Role에 따른 max 레벨 동적 적용 (정의되지 않은 경우 기본 100)
+                        max={ROLE_LEVEL_CONFIG[editFormData.user_role]?.max || 100}
+                        step="1"
+                        value={editFormData.user_level || 10}
+                        onChange={(e) => setEditFormData({
+                          ...editFormData, 
+                          user_level: parseInt(e.target.value)
+                        })}
+                        className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      />
+                    </div>
+                    
+                    <div className="flex justify-between mt-2">
+                      <span className="text-[10px] font-black text-slate-300">LV. 1</span>
+                      <span className="text-[10px] font-black text-slate-300">
+                        MAX. {ROLE_LEVEL_CONFIG[editFormData.user_role]?.max || 100}
+                      </span>
+                    </div>
+                  </div>
+                  
                 </div>
               )}
             </div>

@@ -178,7 +178,7 @@ export default function LoginPage() {
       });
 
       if (authError) {
-        console.error("❌ [Error] Supabase 인증 실패:", authError.message);
+        // console.error("❌ [Error] Supabase 인증 실패:", authError.message);
         alert('로그인 실패: ' + authError.message);
         setLoading(false);
         return;
@@ -186,7 +186,7 @@ export default function LoginPage() {
 
       if (authData?.user?.email) {
         // 2. 백엔드 사용자 권한/정보 확인
-        let userData = { user_role: ROLE_CODE.GUEST, user_name: '사용자', user_id: '', user_center: '' };
+        let userData = { user_role: ROLE_CODE.GUEST, user_name: '사용자', user_id: '', user_center: '', user_level: 1 };
 
         try {
           const response = await fetch('/api/auth/login-check', {
@@ -197,7 +197,7 @@ export default function LoginPage() {
 
           if (response.ok) {
             const fetchedData = await response.json();
-            console.log("📝 [Front] 서버에서 받은 유저 데이터:", fetchedData);
+            // console.log("📝 [Front] 서버에서 받은 유저 데이터:", fetchedData);
             // if (fetchedData) userData = fetchedData;
             userData = {
               ...fetchedData,
@@ -207,13 +207,24 @@ export default function LoginPage() {
         } catch (fetchErr) {
           console.error("❌ [Error] 백엔드 서버 연결 실패:", fetchErr);
         }
+        // console.log("📝 [Step 2] 가공된 userData 상태:", userData);
+        const isDriver = String(userData.user_role) === ROLE_CODE.DRIVER;
+        const userLevel = Number(userData.user_level || 0);
+        const WEB_ACCESS_MIN_LEVEL = 30; // 웹 접근 가능한 최소 레벨
+        // console.log("📝 [Step 3] 최종 레벨 판정:", { 
+        //   isDriver, 
+        //   userLevel, 
+        //   levelType: typeof userLevel,
+        //   rawLevelFromUserData: userData.user_level 
+        // });
 
-        // ⭐ [권한 필터링] 배송기사(001004) 권한 웹 로그인 강력 차단
-        if (String(userData.user_role) === ROLE_CODE.DRIVER) {
-          alert('배송기사 권한은 웹 로그인을 할 수 없습니다.');
+        // [권한 필터링] 배송기사(001004) 권한 웹 로그인 차단
+        if (isDriver && userLevel < WEB_ACCESS_MIN_LEVEL) {
+          alert('웹 접근 권한이 없는 배송기사 계정입니다. 관리자에게 문의하세요.');
           await supabase.auth.signOut();
           localStorage.removeItem('is_logged_in');
           localStorage.removeItem('user_role');
+          localStorage.removeItem('user_level');
           localStorage.removeItem('user_uuid');
           document.cookie = "sb-access-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
           document.cookie = "my-auth-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
@@ -221,14 +232,21 @@ export default function LoginPage() {
           window.location.reload();
           return; 
         }
+        // console.log("📝 [Step 4] Zustand 저장 직전 데이터:", {
+        //     user_id: userData.user_id,
+        //     user_name: userData.user_name,
+        //     user_level: userLevel
+        // });
 
         // 3. Zustand 글로벌 스토어 저장
         setAuth(
           {
-            id: authData.user.id,
+            id: authData.user.id,        // 필요하다면 유지
+            user_id: userData.user_id || '', // ✅ 추가 (인터페이스의 user_id)
             email: authData.user.email,
-            userName: userData.user_name || '사용자',
+            user_name: userData.user_name || '사용자', // ✅ userName 대신 user_name
             user_center: userData.user_center,
+            user_level: userLevel,
           },
           userData.user_role
         );
@@ -241,6 +259,7 @@ export default function LoginPage() {
         localStorage.setItem('user_role', userData.user_role);
         localStorage.setItem('user_center', userData.user_center || '');
         localStorage.setItem('remembered_email', email.trim());
+        localStorage.setItem('user_level', String(userLevel));
         // localStorage.setItem('is_logged_in', 'true');
         // 사용자별 개별 메뉴 권한 조회를 위해 UUID 저장
         // localStorage.setItem('user_uuid', authData.user.id);
@@ -250,6 +269,7 @@ export default function LoginPage() {
         sessionStorage.setItem('user_center', userData.user_center || '');
         sessionStorage.setItem('is_logged_in', 'true');
         sessionStorage.setItem('user_uuid', authData.user.id);
+        sessionStorage.setItem('user_level', String(userLevel));
         
         /*
         if (authData?.session) {
@@ -277,7 +297,13 @@ export default function LoginPage() {
 
         if (authData?.session) {
           alert(`${userData.user_name}님, 환영합니다!`);
-          window.location.replace('/delivery');
+          if (userData.user_role === '001004' && userLevel >= 30) {
+            window.location.replace('/drivers');
+          } else {
+            // 그 외는 기존 배송 리스트로 이동
+            window.location.replace('/delivery');
+          }
+          // window.location.replace('/delivery');
         }
         setLoading(false);
       }

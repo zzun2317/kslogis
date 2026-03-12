@@ -144,6 +144,11 @@ export default function DeliveryAdminPage() {
 
   // --- 데이터 조회 함수 ---
   const fetchDeliveryData = useCallback(async () => {
+    // 1. 권한 정보가 로드될 때까지 대기 (방어 로직)
+    if (!user?.user_role || !userCenterList) {
+      console.log("⏳ 사용자 권한 정보 로딩 대기 중...");
+      return;
+    }
     setLoading(true);
     setIsDataLimitReached(false);
     try { 

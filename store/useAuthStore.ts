@@ -2,11 +2,21 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
+interface User {
+  id: string;
+  email: string;
+  user_name: string;
+  user_id: string;
+  user_center: string;
+  user_level: number; 
+  [key: string]: any; // 기존 데이터 유지를 위한 확장성
+}
+
 interface AuthState {
-  user: any | null;
+  user: User | null;
   role: string | null;      // ks_users 테이블의 권한 정보 (예: '001001', '001004')
   isLoggedIn: boolean;
-  setAuth: (user: any, role: string) => void;
+  setAuth: (user: User, role: string) => void;
   clearAuth: () => void;
 }
 

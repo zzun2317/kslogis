@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 
 export default function Navbar() {
   const { user, role } = useAuthStore();
+  const userLevel = Number(user?.user_level || 0);
   const router = useRouter();
   const pathname = usePathname(); 
   const [session, setSession] = useState<any>(null);
@@ -122,8 +123,10 @@ export default function Navbar() {
     // const userUuid = localStorage.getItem('user_uuid'); // 로그인 시 저장여부 확인
     const userRole = role || sessionStorage.getItem('user_role');
     const userUuid = user?.id || sessionStorage.getItem('user_uuid');
+    const storageLevel = sessionStorage.getItem('user_level');
+    const userLevel = Number(user?.user_level || storageLevel || 0);
     console.log("🔍 [메뉴로드] 현재 상태:", { userRole, userUuid, storeUser: user?.id });
-    console.log("🔍 메뉴 로드 시도:", { userRole, userUuid });
+    console.log("🔍 메뉴 로드 시도:", { userRole, userUuid, userLevel });
 
     if (!userRole || !userUuid) {
       console.warn("⚠️ 권한 정보가 없어 메뉴를 불러올 수 없습니다.");
@@ -151,7 +154,9 @@ export default function Navbar() {
         ...(roleMenus?.map(m => m.menu_id) || []),
         ...(userMenus?.map(m => m.menu_id) || [])
       ];
-      const uniqueMenuIds = Array.from(new Set(combinedIds));
+      const roleMenuIds = roleMenus?.map(m => m.menu_id) || [];
+      const userMenuIds = userMenus?.map(m => m.menu_id) || [];
+      const uniqueMenuIds = Array.from(new Set([...roleMenuIds, ...userMenuIds]));
       console.log("🔍 [메뉴로드] 최종 Menu IDs:", uniqueMenuIds);
 
       if (uniqueMenuIds.length === 0) {
@@ -177,8 +182,26 @@ export default function Navbar() {
         .order('menu_sort', { ascending: true });
 
       if (data) {
+        const filteredData = data.filter((item: any) => {
+          const isUserSpecific = userMenuIds.includes(item.menu_id);
+          // A. 개인 권한(ks_menu_user)에 등록된 메뉴라면 무조건 패스
+          // 배송기사(001004)인 경우의 필터링 강화
+          if (userRole === '001004') {
+            // 배송기사는 ALL이나 그룹 권한이 있어도 무시하고,
+            // 오직 개별 권한(ks_menu_user)에 등록된 메뉴만 보여줌
+            return isUserSpecific;
+          }
+
+          // '배송기사 관리' 메뉴(/drivers)에 대한 세부 레벨 제어
+          if (item.menu_path === '/drivers') {
+            // 레벨이 30 이하(30 포함)이면 숨김 (즉, 31 이상만 보임)
+            if (userLevel <= 30) return false;
+          }
+          return true; // 나머지 메뉴는 통과
+        });
+
         // 3. 데이터를 카테고리별로 그룹화
-        const grouped = data.reduce((acc: any, item: any) => {
+        const grouped = filteredData.reduce((acc: any, item: any) => {
           const categoryCode = item.menu_group;
           const categoryName = item.ks_common?.comm_text1 || '기타';
 
@@ -189,7 +212,6 @@ export default function Navbar() {
           acc[groupKey].push(item);
           return acc;
         }, {});
-
         setGroupedMenuList(grouped);
       }
     } catch (err) {
@@ -235,6 +257,8 @@ export default function Navbar() {
         localStorage.removeItem('user_email'); // driver_email
         localStorage.removeItem('user_role');
         localStorage.removeItem('user_name');
+        localStorage.removeItem('user_level');
+        localStorage.removeItem('user_center');
         sessionStorage.clear();
 
         const deleteCookie = (name: string) => {
