@@ -261,7 +261,7 @@ export default function Navbar() {
         clearAuth();
 
         localStorage.removeItem('is_logged_in');
-        localStorage.removeItem('user_email'); // driver_email
+        // localStorage.removeItem('user_email'); // driver_email
         localStorage.removeItem('user_role');
         localStorage.removeItem('user_name');
         localStorage.removeItem('user_level');
