@@ -298,9 +298,11 @@ export default function Navbar() {
       <div className="max-w-[1400px] mx-auto px-6 py-4 flex items-center justify-between">
         
         {/* [왼쪽] 로고 - 고정 */}
-        <Link href="/delivery" className="text-xl font-black tracking-tighter text-blue-400 uppercase shrink-0 mr-4">
+        {/* <Link href="/delivery" className="text-xl font-black tracking-tighter text-blue-400 uppercase shrink-0 mr-4"> */}
+        <div className="text-xl font-black tracking-tighter text-blue-400 uppercase shrink-0 mr-4">
           KS Logistics
-        </Link>
+        </div>  
+        {/* </Link> */}
         
         {/* [가운데] 메뉴 리스트 영역 - 가변 및 스크롤 */}
         <div className="relative flex-1 flex items-center">
