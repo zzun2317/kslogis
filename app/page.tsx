@@ -116,7 +116,7 @@ export default function DashboardPage() {
         // 🔥 [추가 로직] Navbar와 공유하기 위해 스토어 및 세션스토리지 업데이트
         if (session && savedRole) {
           // 1. Zustand 스토어 업데이트 (Navbar가 이걸 보고 있음)
-          useAuthStore.getState().setAuth(session.user, savedRole);
+          useAuthStore.getState().setAuth(session.user as any, savedRole);
           
           // 2. 세션스토리지 업데이트 (Navbar의 fetchDynamicMenus 보조용)
           if (!sessionStorage.getItem('user_role')) {
