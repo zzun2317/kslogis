@@ -7,7 +7,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/useAuthStore';
 
 export default function Navbar() {
-  const { user, role } = useAuthStore();
+  const { user, role, isLoggedIn } = useAuthStore();
   const userLevel = Number(user?.user_level || 0);
   const router = useRouter();
   const pathname = usePathname(); 
@@ -119,14 +119,20 @@ export default function Navbar() {
 
   // --- 권한별 메뉴 가져오기 ---
   const fetchDynamicMenus = async () => {
+    const storeRole = useAuthStore.getState().role; // 스토어 직접 조회
+    const storageRole = sessionStorage.getItem('user_role');
     // const userRole = localStorage.getItem('user_role'); // 저장된 권한 코드 확인
     // const userUuid = localStorage.getItem('user_uuid'); // 로그인 시 저장여부 확인
-    const userRole = role || sessionStorage.getItem('user_role');
+    const userRole = (storageRole && storageRole !== 'user') ? storageRole : storeRole;
     const userUuid = user?.id || sessionStorage.getItem('user_uuid');
     const storageLevel = sessionStorage.getItem('user_level');
     const userLevel = Number(user?.user_level || storageLevel || 0);
     console.log("🔍 [메뉴로드] 현재 상태:", { userRole, userUuid, storeUser: user?.id });
     console.log("🔍 메뉴 로드 시도:", { userRole, userUuid, userLevel });
+    
+    // const userRole = storeRole || storageRole;
+    // const userUuid = user?.id || sessionStorage.getItem('user_uuid');
+    console.log("🚀 [Navbar 검사] 스토어Role:", storeRole, " / 스토리지Role:", storageRole);
 
     if (!userRole || !userUuid) {
       console.warn("⚠️ 권한 정보가 없어 메뉴를 불러올 수 없습니다.");
@@ -244,7 +250,7 @@ export default function Navbar() {
   //   window.location.href = '/login';
   //   return;
   // }
-
+  const { clearAuth } = useAuthStore();
   // 🚀 로그아웃 처리 로직
   const handleSignOut = async () => {
     if (confirm("로그아웃 하시습니까?")) {
@@ -252,6 +258,7 @@ export default function Navbar() {
         console.log("📍 [Navbar] 로그아웃 프로세스 시작...");
 
         await supabase.auth.signOut();
+        clearAuth();
 
         localStorage.removeItem('is_logged_in');
         localStorage.removeItem('user_email'); // driver_email

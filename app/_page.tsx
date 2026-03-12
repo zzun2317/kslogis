@@ -50,7 +50,7 @@ export default function HomePage() {
         }
 
         // (3) 권한에 따른 초기 필터 설정
-        if (savedEmail && (savedRole !== 'admin' && savedRole !== 'user' && savedRole !== '001001')) {
+        if (savedEmail && (savedRole !== '001002' && savedRole !== '001003' && savedRole !== '001001')) {
           console.log("📍 [Page Step 4] 기사 권한 감지 - 본인 데이터로 고정");
           setSelectedDriverEmail(savedEmail);
         }
@@ -68,7 +68,7 @@ export default function HomePage() {
         if (driverData) setDrivers(driverData);
 
         // (6) 첫 데이터 로드
-        const isAdmin = (savedRole === 'admin' || savedRole === 'user' || savedRole === '001001');
+        const isAdmin = (savedRole === '001002' || savedRole === '001003' || savedRole === '001001');
         const initialEmail = (isAdmin) ? 'all' : (savedEmail || 'all');
         fetchDashboardData(initialEmail, selectedDate, 'all');
 

@@ -137,7 +137,7 @@ export default function DashboardPage() {
         // }
 
         // (3) 권한에 따른 초기 필터 설정
-        if (savedEmail && (savedRole !== 'admin' && savedRole !== 'user' && savedRole !== '001001')) {
+        if (savedEmail && (savedRole !== '001002' && savedRole !== '001003' && savedRole !== '001001')) {
           console.log("📍 [Page Step 4] 기사 권한 감지 - 본인 데이터로 고정");
           setSelectedDriverEmail(savedEmail);
         }

@@ -16,6 +16,10 @@ interface AuthState {
   user: User | null;
   role: string | null;      // ks_users 테이블의 권한 정보 (예: '001001', '001004')
   isLoggedIn: boolean;
+  user_id: string;
+  user_name: string;
+  user_center: string;
+  user_level: number;
   setAuth: (user: User, role: string) => void;
   clearAuth: () => void;
 }
@@ -26,19 +30,32 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       role: null,
       isLoggedIn: false,
+      user_id: '',
+      user_name: '',
+      user_center: '',
+      user_level: 0,
       setAuth: (user, role) => set({ 
         user, 
         role, 
-        isLoggedIn: true 
+        isLoggedIn: true,
+        user_id: user.user_id,
+        user_name: user.user_name,
+        user_center: user.user_center, // 이제 004001이 여기로 들어옵니다!
+        user_level: user.user_level 
       }),
       clearAuth: () => set({ 
         user: null, 
         role: null, 
-        isLoggedIn: false 
+        isLoggedIn: false,
+        user_id: '',
+        user_name: '',
+        user_center: '',
+        user_level: 0 
       }),
     }),
     {
       name: 'ks-auth-storage',
+      
       // ✅ localStorage 대신 sessionStorage로 변경하세요!
       // 이렇게 하면 브라우저 탭이나 창을 닫을 때 데이터가 자동으로 삭제됩니다.
       storage: createJSONStorage(() => sessionStorage), 

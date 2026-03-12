@@ -7,15 +7,28 @@ import { useAuth } from '@/hook/useAuth';
 
 export default function DriverAdminPage() {
   // 1. 커스텀 훅을 통한 권한 정보 추출
-  const { user, isLocalManager, userCenterList, canEdit, isDriver, isMaster, userLevel: authLevel } = useAuth();
+  const { user, isLocalManager, userCenterList, canEdit, isDriver, isMaster, userLevel: authLevel, roleCode: authRole } = useAuth();
   const COMPLETE_STATUS = '002003'; // 배송완료 상태 코드
+  const userRole = authRole || user?.user_role || sessionStorage.getItem('user_role');
   const userLevel = authLevel || Number(sessionStorage.getItem('user_level') || 0);
   const isDriverAdmin = user?.user_role === '001004' && userLevel >= 30;
-  console.log("🛠 [Navbar 레벨체크]", { 
-    rawLevel: user?.user_level, 
-    parsedLevel: userLevel,
-    role: user?.user_role 
-  });
+  // console.log("🛠 [Navbar 레벨체크]", { 
+  //   rawLevel: user?.user_level, 
+  //   parsedLevel: userLevel,
+  //   role: user?.user_role 
+  // });
+
+  const hasAccess = useMemo(() => {
+    if (!userRole) return false;
+
+    // 슈퍼관리자(001001)는 프리패스
+    if (userRole === '001001') return true;
+
+    // 기사(001004) 관리자 조건
+    if (userRole === '001004' && userLevel >= 30) return true;
+
+    return false;
+  }, [userRole, userLevel]);
   
   const isRowEditable = (item: any) => {
     if (!canEdit) return false; // 기본 권한 없으면 차단 [cite: 43]
@@ -26,11 +39,14 @@ export default function DriverAdminPage() {
   };
 
   // 2. 권한 보안: 기사(001004)나 비로그인 사용자가 URL 직접 접근 시 차단
-  if (!user || !isDriverAdmin) {
+  if (!user || !hasAccess) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-50">
         <div className="text-center p-10 bg-white rounded-2xl shadow-lg border border-slate-200">
-          <p className="text-slate-500 font-bold">접근 권한이 없거나 세션이 만료되었습니다.</p>
+          <p className="text-slate-500 font-bold text-xl mb-2">접근 권한 안내</p>
+          <p className="text-slate-400">슈퍼관리자 또는 관리 권한이 있는 기사님만 이용 가능합니다.</p>
+          {/* 디버깅을 위해 현재 정보를 살짝 띄워주면 좋습니다 */}
+          <p className="text-[10px] text-slate-300 mt-4">Role: {user?.user_role} / Level: {userLevel}</p>
         </div>
       </div>
     );

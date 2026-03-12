@@ -18,7 +18,7 @@ export async function POST(request: Request) {
       .select('*')
       .eq('user_email', email) // 회원가입 시 넣은 컬럼명 확인 필요!
       .single();
-
+console.log("🔍 [서버 DB조회 직후] user_center:", user?.user_center);
     if (error || !user) {
       console.error("❌ [API] DB 조회 에러:", error);  
       return NextResponse.json({ message: '등록되지 않은 사용자입니다.' }, { status: 401 });

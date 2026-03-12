@@ -167,10 +167,12 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("🚀 [1] handleLogin 시작됨!");
     if (loading) return; 
     setLoading(true);
 
     try {
+      console.log("🚀 [2] Supabase 인증 시도 중... Email:", email.trim());
       // 1. Supabase 인증 시도
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
@@ -194,15 +196,49 @@ export default function LoginPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: authData.user.email.trim() }),
           });
+          console.log("🚀 [6] 백엔드 응답 도착! 상태코드:", response.status);
 
           if (response.ok) {
             const fetchedData = await response.json();
-            // console.log("📝 [Front] 서버에서 받은 유저 데이터:", fetchedData);
+            console.log("🏢 [Center Code Raw]:", fetchedData.user_center);
+            const userLevel = Number(fetchedData.user_level || 0);
+            const userCenter = fetchedData.user_center
             // if (fetchedData) userData = fetchedData;
             userData = {
               ...fetchedData,
-              user_role: fetchedData.user_role || fetchedData.role 
+              user_role: fetchedData.user_role || fetchedData.role, 
+              user_center: fetchedData.user_center
             };
+            setAuth(
+              {
+                id: authData.user.id,        // 필요하다면 유지
+                user_id: userData.user_id || '', // ✅ 추가 (인터페이스의 user_id)
+                email: authData.user.email,
+                user_name: userData.user_name || '사용자', // ✅ userName 대신 user_name
+                user_center: fetchedData.user_center,
+                user_level: userLevel,
+              },
+              userData.user_role
+            );
+
+            // 4. 로컬 데이터 저장
+            localStorage.setItem('last_logged_in_email', email.trim());
+            localStorage.setItem('user_email', email.trim()); // driver_email로 키 이름 변경
+            localStorage.setItem('user_name', userData.user_name || ''); // driver_name로 키 이름 변경
+            localStorage.setItem('user_id', userData.user_id || '');
+            localStorage.setItem('user_role', userData.user_role);
+            localStorage.setItem('user_center', fetchedData.user_center || '');
+            localStorage.setItem('remembered_email', email.trim());
+            localStorage.setItem('user_level', String(userLevel));
+            
+
+            sessionStorage.setItem('user_id', userData.user_id || '');
+            sessionStorage.setItem('user_role', userData.user_role);
+            sessionStorage.setItem('user_center', fetchedData.user_center || '');
+            sessionStorage.setItem('is_logged_in', 'true');
+            sessionStorage.setItem('user_uuid', authData.user.id);
+            sessionStorage.setItem('user_level', String(userLevel));
+
           }
         } catch (fetchErr) {
           console.error("❌ [Error] 백엔드 서버 연결 실패:", fetchErr);
@@ -211,12 +247,12 @@ export default function LoginPage() {
         const isDriver = String(userData.user_role) === ROLE_CODE.DRIVER;
         const userLevel = Number(userData.user_level || 0);
         const WEB_ACCESS_MIN_LEVEL = 30; // 웹 접근 가능한 최소 레벨
-        // console.log("📝 [Step 3] 최종 레벨 판정:", { 
-        //   isDriver, 
-        //   userLevel, 
-        //   levelType: typeof userLevel,
-        //   rawLevelFromUserData: userData.user_level 
-        // });
+        console.log("📝 [Step 3] 최종 레벨 판정:", { 
+          isDriver, 
+          userLevel, 
+          levelType: typeof userLevel,
+          rawLevelFromUserData: userData.user_level 
+        });
 
         // [권한 필터링] 배송기사(001004) 권한 웹 로그인 차단
         if (isDriver && userLevel < WEB_ACCESS_MIN_LEVEL) {
@@ -239,37 +275,34 @@ export default function LoginPage() {
         // });
 
         // 3. Zustand 글로벌 스토어 저장
-        setAuth(
-          {
-            id: authData.user.id,        // 필요하다면 유지
-            user_id: userData.user_id || '', // ✅ 추가 (인터페이스의 user_id)
-            email: authData.user.email,
-            user_name: userData.user_name || '사용자', // ✅ userName 대신 user_name
-            user_center: userData.user_center,
-            user_level: userLevel,
-          },
-          userData.user_role
-        );
+        // setAuth(
+        //   {
+        //     id: authData.user.id,        // 필요하다면 유지
+        //     user_id: userData.user_id || '', // ✅ 추가 (인터페이스의 user_id)
+        //     email: authData.user.email,
+        //     user_name: userData.user_name || '사용자', // ✅ userName 대신 user_name
+        //     user_center: userData.user_center,
+        //     user_level: userLevel,
+        //   },
+        //   userData.user_role
+        // );
 
         // 4. 로컬 데이터 저장
-        localStorage.setItem('last_logged_in_email', email.trim());
-        localStorage.setItem('user_email', email.trim()); // driver_email로 키 이름 변경
-        localStorage.setItem('user_name', userData.user_name || ''); // driver_name로 키 이름 변경
-        localStorage.setItem('user_id', userData.user_id || '');
-        localStorage.setItem('user_role', userData.user_role);
-        localStorage.setItem('user_center', userData.user_center || '');
-        localStorage.setItem('remembered_email', email.trim());
-        localStorage.setItem('user_level', String(userLevel));
-        // localStorage.setItem('is_logged_in', 'true');
-        // 사용자별 개별 메뉴 권한 조회를 위해 UUID 저장
-        // localStorage.setItem('user_uuid', authData.user.id);
+        // localStorage.setItem('last_logged_in_email', email.trim());
+        // localStorage.setItem('user_email', email.trim()); // driver_email로 키 이름 변경
+        // localStorage.setItem('user_name', userData.user_name || ''); // driver_name로 키 이름 변경
+        // localStorage.setItem('user_id', userData.user_id || '');
+        // localStorage.setItem('user_role', userData.user_role);
+        // localStorage.setItem('user_center', userData.user_center || '');
+        // localStorage.setItem('remembered_email', email.trim());
+        // localStorage.setItem('user_level', String(userLevel));
 
-        sessionStorage.setItem('user_id', userData.user_id || '');
-        sessionStorage.setItem('user_role', userData.user_role);
-        sessionStorage.setItem('user_center', userData.user_center || '');
-        sessionStorage.setItem('is_logged_in', 'true');
-        sessionStorage.setItem('user_uuid', authData.user.id);
-        sessionStorage.setItem('user_level', String(userLevel));
+        // sessionStorage.setItem('user_id', userData.user_id || '');
+        // sessionStorage.setItem('user_role', userData.user_role);
+        // sessionStorage.setItem('user_center', userData.user_center || '');
+        // sessionStorage.setItem('is_logged_in', 'true');
+        // sessionStorage.setItem('user_uuid', authData.user.id);
+        // sessionStorage.setItem('user_level', String(userLevel));
         
         /*
         if (authData?.session) {

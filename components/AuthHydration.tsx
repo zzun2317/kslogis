@@ -11,50 +11,41 @@ export default function AuthHydration({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     const initAuth = async () => {
-      // 1. Supabase 현재 세션 가져오기
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session) {
-        // 2. 세션이 있다면 저장소(sessionStorage)에서 권한 정보 확인
-        const user_role = sessionStorage.getItem('user_role');
-        const user_center = sessionStorage.getItem('user_center');
-        const user_name = sessionStorage.getItem('user_name') || '사용자'; // driver_name
+        // ✨ 중요: sessionStorage보다 session.user의 최신 메타데이터를 우선 사용합니다.
+        const meta = session.user.user_metadata || {};
+        const metaRole = meta.user_role;
+        const storageRole = sessionStorage.getItem('user_role');
+        const storageCenter = sessionStorage.getItem('user_center');
+        const storageLevel = sessionStorage.getItem('user_level');
+        const finalLevel = storageLevel ? Number(storageLevel) : Number(meta.user_level || 0);
+        // const user_role = meta.user_role || sessionStorage.getItem('user_role');
+        
 
-        if (!user_role) {
-          // 1. 메타데이터에서 안전하게 값 추출 (기본값 설정)
-          const meta = session.user.user_metadata || {};
-          const user_name = meta.user_name || '이름없음';
-          const user_id = meta.user_id || '';
-          const user_center_meta = meta.user_center || '';
-          const user_level = Number(meta.user_level || 0);
-
-          // 2. 스토어(useAuthStore)의 User 인터페이스 규격에 완벽히 맞춤
+        if (storageRole) {
+          // 1. 스토어 업데이트 (메뉴 렌더링의 핵심)
           setAuth({
             id: session.user.id,
             email: session.user.email || '',
-            user_name: user_name,       // userName -> user_name 으로 수정
-            user_id: user_id,           // 추가 (Store 필수값)
-            user_center: user_center || user_center_meta, // 기존 변수 혹은 메타데이터 사용
-            user_level: user_level,     // 추가 (Store 필수값)
-          }, user_role|| '001003');
-        } else {
-          // 세션은 있는데 권한 정보가 없다면 다시 로그인 시키거나 정보를 새로 불러와야 함
-          console.warn("세션은 존재하나 권한 정보가 없어 초기화합니다.");
-          await supabase.auth.signOut();
+            user_name: meta.user_name || '사용자',
+            user_id: meta.user_id || '',
+            user_center: storageCenter || '',
+            user_level: finalLevel,
+          }, storageRole);
 
-          const authKeys = [
-            'is_logged_in', 
-            'user_role', 
-            'user_id', 
-            'user_center', 
-            'driver_email' // 로그아웃 시 지워야 할 인증 데이터들
-          ];
-          
-          authKeys.forEach(key => localStorage.removeItem(key));
-          // localStorage.clear(); // 로그인 된 이메일 정보까 삭제 된다
+          // 2. sessionStorage와 동기화 (새로고침 대비)
+          if (!sessionStorage.getItem('user_role')) {
+            sessionStorage.setItem('user_role', storageRole);
+            sessionStorage.setItem('user_name', meta.user_name || '');
+            sessionStorage.setItem('user_level', String(meta.user_level || 0));
+          }
+        } else {
+          // 권한 정보가 아예 없는 경우
+          await supabase.auth.signOut();
           sessionStorage.clear();
           clearAuth();
-
           window.location.href = '/login';
           return;
         }
@@ -67,8 +58,7 @@ export default function AuthHydration({ children }: { children: React.ReactNode 
     initAuth();
   }, [setAuth, clearAuth]);
 
-  //  하이드레이션(데이터 복구)이 끝나기 전에는 아무것도 안 그리거나 로딩 바를 표시
-  if (!isHydrated) return <div className="loading-screen">로딩 중...</div>;
+  if (!isHydrated) return <div className="loading-screen">메뉴 구성 중...</div>;
 
   return <>{children}</>;
 }
