@@ -836,17 +836,17 @@ export default function DriverAdminPage() {
 
                       {/* 배송상태 */}
                       <td className={cellStyle}>
-                        <select 
-                          disabled={!canEdit || isLocalManager}
-                          value={item.cust_devstatus || ''} 
-                          onChange={(e) => handleInputChange(idx, 'cust_devstatus', e.target.value)} 
-                          className={`${inputStyle} text-center font-black ${!canEdit ? 'appearance-none' : ''}`} 
-                          style={{ color: item.devstatus_color || '#64748b' }}
-                        >
-                          {statusList.map((st) => (<option key={st.comm_ccode} value={st.comm_ccode} style={{ color: st.comm_hex }}>{st.comm_text1}</option>))}
-                        </select>
+                        <div className="flex justify-center items-center w-full">
+                          <span 
+                            className="font-black text-center" 
+                            style={{ color: item.devstatus_color || '#64748b' }}
+                          >
+                            {/* statusList에서 현재 아이템의 상태 코드와 일치하는 텍스트를 찾아 표시 */}
+                            {statusList.find(st => st.comm_ccode === item.cust_devstatus)?.comm_text1 || '상태 없음'}
+                          </span>
+                        </div>
                       </td>
-
+                      
                       {/* <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_gubun}</div></td> */}
                       {/* <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_ordno}</div></td> */}
 
@@ -869,9 +869,11 @@ export default function DriverAdminPage() {
                         </div>
                       </td> */}
 
-                      {/* 날짜 입력들 */}
-                      <td className={cellStyle}><input type="date" disabled={!canEdit || isLocalManager} value={item.cust_devdate || ''} onChange={(e) => handleInputChange(idx, 'cust_devdate', e.target.value)} className={dateInputStyle} /></td>
-                      <td className={cellStyle}><input type="date" disabled={!canEdit || isLocalManager} value={item.cust_reqdate || ''} onChange={(e) => handleInputChange(idx, 'cust_reqdate', e.target.value)} className={dateInputStyle} /></td>
+                      {/* 날짜 입력들 : 수정불가*/}
+                      {/* <td className={cellStyle}><input type="date" disabled={!canEdit || isLocalManager} value={item.cust_devdate || ''} onChange={(e) => handleInputChange(idx, 'cust_devdate', e.target.value)} className={dateInputStyle} /></td> */}
+                      {/* <td className={cellStyle}><input type="date" disabled={!canEdit || isLocalManager} value={item.cust_reqdate || ''} onChange={(e) => handleInputChange(idx, 'cust_reqdate', e.target.value)} className={dateInputStyle} /></td> */}
+                      <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_devdate}</div></td>
+                      <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_reqdate}</div></td>
                       
                       {/* 연기일자 (조회전용) */}
                       {/* <td className={cellStyle}>

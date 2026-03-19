@@ -57,7 +57,8 @@ export default function Navbar() {
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
 
-  const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname?.startsWith('/view-images');
+  // 화면 상단 메뉴나오는 부분 숨김처리 메뉴리스트(로그아웃 라인)
+  const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname?.startsWith('/view-images') || pathname?.startsWith('/privacy');
 
   // 스크롤 위치에 따라 화살표 표시 여부 결정
   const checkScroll = () => {

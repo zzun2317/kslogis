@@ -19,7 +19,7 @@ export default function PrivacyPage() {
             onClick={() => router.back()}
             className="bg-white/10 hover:bg-white text-white hover:text-slate-900 px-5 py-2 rounded-xl text-sm font-black transition-all active:scale-95"
           >
-            닫기
+            
           </button>
         </div>
 
@@ -34,7 +34,7 @@ export default function PrivacyPage() {
           <div className="p-6 md:p-8 max-h-[400px] overflow-y-auto text-[13px] leading-relaxed text-slate-600 custom-scrollbar">
             <div className="space-y-4">
               <p className="font-bold text-slate-900">[제1장 총칙]</p>
-              <p><strong>제1조 (목적)</strong> 이 약관은 KSLogis이(이하 "회사"라고 한다) 온라인으로 제공하는 헤이트럭 배송관제 서비스 및 제반서비스의 이용과 관련하여 회사와 이용자와의 권리, 의무 및 책임사항 등을 규정함을 목적으로 합니다.</p>
+              <p><strong>제1조 (목적)</strong> 이 약관은 KSLogis이(이하 "회사"라고 한다) 온라인으로 제공하는 배송관제 TMS 서비스 및 제반서비스의 이용과 관련하여 회사와 이용자와의 권리, 의무 및 책임사항 등을 규정함을 목적으로 합니다.</p>
               <p><strong>제2조 (정의)</strong><br/>
                 1. "회사"라 함은 "서비스" 산업과 관련된 경제활동을 영위하는 자로서 콘텐츠 및 제반서비스를 제공하는 자를 말합니다.<br/>
                 2. "이용자"라 함은 "회사"의 사이트에 접속하여 이 약관에 따라 "회사"가 제공하는 "서비스"를 이용하는 회원 및 비회원을 말합니다.<br/>
@@ -44,7 +44,7 @@ export default function PrivacyPage() {
                 6. "아이디(ID)"라 함은 "회원"의 식별과 서비스이용을 위하여 "회원"이 정하고 "회사"가 승인하는 문자 또는 숫자의 조합을 말합니다.<br/>
                 7. "비밀번호(PASSWORD)"라 함은 "회원"이 부여받은 "아이디"와 일치되는 "회원"임을 확인하고 비밀보호를 위해 "회원" 자신이 정한 문자 또는 숫자의 조합을 말합니다.
               </p>
-              <p><strong>제3조(신원정보 등의 제공)</strong> "회사"는 이 약관의 내용, 상호, 대표자 성명, 영업소 소재지 주소(소비자의 불만을 처리할 수 있 는 곳의 주소를 포함), 전화번호, 모사전송번호, 전자우편주소, 사업자등록번호, 통신판매업 신고번호 및 개인정보관리책 임자 등을 이용자가 쉽게 알 수 있도록 온라인 서비스초기화면에 게시합니다. 다만, 약관은 이용자가 연결화면을 통하여 볼 수 있도록 할 수 있습니다.
+              <p><strong>제3조(신원정보 등의 제공)</strong> "회사"는 이 약관의 내용, 상호, 대표자 성명, 영업소 소재지 주소(소비자의 불만을 처리할 수 있는 곳의 주소를 포함), 전화번호, 모사전송번호, 전자우편주소, 사업자등록번호, 통신판매업 신고번호 및 개인정보관리책 임자 등을 이용자가 쉽게 알 수 있도록 온라인 서비스초기화면에 게시합니다. 다만, 약관은 이용자가 연결화면을 통하여 볼 수 있도록 할 수 있습니다.
               </p>
               <p><strong>제4조(약관의 게시 등)</strong><br/>
                 1 "회사"는 이 약관을 "회원"이 그 전부를 인쇄할 수 있고 거래과정에서 해당 약관의 내용을 확인할 수 있도록 기술적 조치를 취합니다.<br/>

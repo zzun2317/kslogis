@@ -462,7 +462,7 @@ export default function DeliveryEditTablePage() {
         const fullAddr = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
         const zoneCode = data.zonecode;
 
-        // 🌟 검증 화면에서 썼던 좌표 및 정제 로직 호출
+        // 검증 화면에서 썼던 좌표 및 정제 로직 호출
         const coords = await getCoordinates(fullAddr);
 
         const newData = [...deliveryData];

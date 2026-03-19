@@ -62,9 +62,9 @@ export default function CommonCodePage() {
           .from('ks_common')
           .select('*')
           .eq('comm_mcode', selectedMCode)
-          .order('comm_ccode', { ascending: true })
-          .order('comm_sort', { ascending: true });
-        
+          .order('comm_sort', { ascending: true })
+          .order('comm_ccode', { ascending: true });
+
         if (error) throw error;
         setSubCodes(data || []);
       } catch (err) {
