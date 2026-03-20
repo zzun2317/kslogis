@@ -118,16 +118,27 @@ export default function SabangnetPage() {
           disabled={isLoading}
           className="bg-blue-600 text-white px-8 h-11 rounded-lg font-bold hover:bg-blue-700 disabled:bg-blue-300 transition-colors shadow-md flex items-center justify-center ml-auto"
         >
-          {isLoading ? '가져오는 중...' : '사방넷 데이터 가져오기'}
+          {isLoading ? (
+            '가져오는 중...'
+          ) : (
+            <>
+              사방넷 데이터 가져오기
+              {orders.length > 0 && (
+                <span className="ml-2 bg-blue-800 px-2 py-0.5 rounded-full text-xs">
+                  {orders.length.toLocaleString()}건
+                </span>
+              )}
+            </>
+          )}
         </button>
 
         <button 
-            onClick={handleInsertTempTable}
-            disabled={isLoading || orders.length === 0}
-            className="bg-green-600 text-white px-6 h-11 rounded-lg font-bold hover:bg-green-700 disabled:bg-gray-300 transition-colors shadow-md flex items-center justify-center"
-          >
-            임시 테이블에 저장
-          </button>
+          onClick={handleInsertTempTable}
+          disabled={isLoading || orders.length === 0}
+          className="bg-green-600 text-white px-6 h-11 rounded-lg font-bold hover:bg-green-700 disabled:bg-gray-300 transition-colors shadow-md flex items-center justify-center"
+        >
+          임시 테이블에 저장
+        </button>
 
       </div>
 
@@ -140,6 +151,8 @@ export default function SabangnetPage() {
                 {/* 헤더 부분: text-black 및 font-bold 적용 */}
                 <th className="px-4 py-3 text-left text-black font-bold border-b border-gray-300">사방넷번호(IDX)</th>
                 <th className="px-4 py-3 text-left text-black font-bold border-b border-gray-300">쇼핑몰주문번호</th>
+                <th className="px-4 py-3 text-left text-black font-bold border-b border-gray-300">쇼핑몰명</th>
+                <th className="px-4 py-3 text-left text-black font-bold border-b border-gray-300">쇼핑몰ID</th>
                 <th className="px-4 py-3 text-left text-black font-bold border-b border-gray-300">수취인명</th>
                 <th className="px-4 py-3 text-left text-black font-bold border-b border-gray-300">상품명(확정)</th>
                 <th className="px-4 py-3 text-left text-black font-bold border-b border-gray-300">수량</th>
@@ -153,6 +166,8 @@ export default function SabangnetPage() {
                     {/* 데이터 부분: text-black 및 font-medium 적용 */}
                     <td className="px-4 py-3 text-black font-medium">{order.IDX}</td>
                     <td className="px-4 py-3 text-black font-medium">{order.ORDER_ID}</td>
+                    <td className="px-4 py-3 text-black font-medium">{order.MALL_ID}</td>
+                    <td className="px-4 py-3 text-black font-medium">{order.MALL_USER_ID}</td>
                     <td className="px-4 py-3 text-black font-medium">{order.RECEIVE_NAME}</td>
                     <td className="px-4 py-3 text-black font-medium">{order.P_PRODUCT_NAME}</td>
                     <td className="px-4 py-3 text-black font-medium">{order.SALE_CNT}</td>
