@@ -11,6 +11,9 @@ export async function POST(req: Request) {
 
     // 2. 사방넷이 읽어갈 우리 서버의 가이드 주소 (Vercel 주소 사용)
     const xmlUrl = `https://kslogis.vercel.app/api/sabangnet/xml-guide?startDate=${formattedStart}&endDate=${formattedEnd}&orderStatus=${orderStatus}`;
+    console.log("--------------------------------");
+    console.log("생성된 xmlUrl:", xmlUrl);
+    console.log("--------------------------------");
 
     // 3. 사방넷 API 엔드포인트 호출 (xml_url 파라미터에 우리 주소 전달)
     // 사방넷은 이 주소를 받으면 내부적으로 우리 xml-guide에 접속해서 인증키와 기간을 확인합니다.
