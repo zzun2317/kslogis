@@ -24,6 +24,7 @@ export async function POST(req: Request) {
     });
 
     const xmlData = await response.text();
+    console.log("사방넷 실제 응답 내용:", xmlData);
 
     // 4. 결과값(XML)을 JSON으로 파싱
     const parser = new XMLParser({
