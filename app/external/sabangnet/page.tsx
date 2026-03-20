@@ -69,8 +69,28 @@ export default function SabangnetPage() {
       alert('인서트할 데이터가 없습니다. 먼저 데이터를 가져와 주세요.');
       return;
     }
-    // TODO: 인서트 로직 구현
-    alert(`${orders.length}건의 데이터를 임시 테이블에 저장합니다.`);
+
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/sabangnet/save', { // API 경로
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`${result.count}건의 데이터가 성공적으로 저장/업데이트 되었습니다.`);
+      } else {
+        alert(`저장 실패: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('저장 오류:', error);
+      alert('서버와 통신 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
