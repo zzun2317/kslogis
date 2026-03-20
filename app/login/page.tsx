@@ -46,6 +46,11 @@ export default function LoginPage() {
   const [findInfo, setFindInfo] = useState({ name: '', phone: '' });
   const [foundEmail, setFoundEmail] = useState<string | null>(null);
 
+  // 🌟 회원탈퇴 모달 관련 상태 추가
+  const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
+  const [withdrawalInfo, setWithdrawalInfo] = useState({ name: '', email: '', phone: '' });
+  const [isWithdrawalSubmitting, setIsWithdrawalSubmitting] = useState(false);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedEmail = localStorage.getItem('remembered_email');
@@ -200,6 +205,16 @@ export default function LoginPage() {
 
           if (response.ok) {
             const fetchedData = await response.json();
+
+            // 🌟 탈퇴 계정(user_active === false) 체크 로직
+            // DB에서 가져온 user_active 값이 false이면 로그인을 중단시킵니다.
+            if (fetchedData.user_active === false || fetchedData.user_active === 'false') {
+              alert('탈퇴 처리된 계정입니다. 관리자에게 문의하세요.');
+              await supabase.auth.signOut(); // 세션 파기
+              setLoading(false);
+              return; 
+            }
+
             console.log("🏢 [Center Code Raw]:", fetchedData.user_center);
             const userLevel = Number(fetchedData.user_level || 0);
             const userCenter = fetchedData.user_center
@@ -347,6 +362,51 @@ export default function LoginPage() {
     }
   };
 
+  // 🌟 회원탈퇴 신청 처리 함수
+  const handleWithdrawalRequest = async () => {
+    if (!withdrawalInfo.name || !withdrawalInfo.email || !withdrawalInfo.phone) {
+      alert("모든 정보를 입력해주세요.");
+      return;
+    }
+
+    if (!confirm("정말로 회원탈퇴를 신청하시겠습니까? 신청 후 관리자 확인을 거쳐 계정이 삭제됩니다.")) {
+      return;
+    }
+
+    setIsWithdrawalSubmitting(true);
+    try {
+      // 1. 해당 정보와 일치하는 유저가 있는지 확인 및 상태 업데이트
+      const purePhone = withdrawalInfo.phone.replace(/[^\d]/g, '');
+      const searchPattern = `%${purePhone.slice(0, 3)}%${purePhone.slice(3, 7)}%${purePhone.slice(7, 11)}%`;
+      
+      const { data, error, count } = await supabase
+        .from('ks_users')
+        .update({ 
+          user_active: false,
+          user_withdrawnat: new Date().toISOString()
+        }, { count: 'exact' }) // ⭐ 중요: 수정된 행의 개수를 파악하기 위해 추가
+        .eq('user_email', withdrawalInfo.email.trim())
+        .eq('user_name', withdrawalInfo.name.trim())
+        .ilike('user_hpno', searchPattern);
+
+      if (error) throw error;
+
+      // count가 0이면 매칭되는 사용자가 없다는 뜻입니다.
+      if (count === 0) {
+        alert("입력하신 정보와 일치하는 회원을 찾을 수 없습니다.");
+        return;
+      }
+
+      alert("회원탈퇴 신청이 완료되었습니다. 보안을 위해 관리자 확인 후 7일 이내에 영구 삭제됩니다.");
+      setIsWithdrawalModalOpen(false);
+      setWithdrawalInfo({ name: '', email: '', phone: '' });
+    } catch (err) {
+      alert("정보가 일치하는 회원을 찾을 수 없거나 시스템 오류가 발생했습니다.");
+    } finally {
+      setIsWithdrawalSubmitting(false);
+    }
+  };
+
   return (
     <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden">
       <div 
@@ -417,6 +477,13 @@ export default function LoginPage() {
               회원가입 하러가기
             </Link>
           </p>
+          {/* 🌟 회원탈퇴 링크 추가 */}
+          <button 
+            onClick={() => setIsWithdrawalModalOpen(true)}
+            className="text-xs text-slate-400 hover:text-red-500 font-bold underline underline-offset-4 mt-2 transition-all"
+          >
+            계정 삭제(회원탈퇴)가 필요하신가요?
+          </button>
         </div>
       </div>
 
@@ -551,6 +618,62 @@ export default function LoginPage() {
           </div>
         </div>
       )}
+
+      {/* 🌟 회원탈퇴 신청 모달 UI 추가 */}
+      {isWithdrawalModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white p-8 rounded-[2rem] w-full max-w-md shadow-2xl">
+            <h2 className="text-2xl font-black text-red-600 mb-2">계정 삭제 요청</h2>
+            <p className="text-sm text-slate-500 mb-6 font-medium">본인 확인을 위해 등록된 정보를 입력해주세요.</p>
+            
+            <div className="space-y-4">
+              <input
+                type="text"
+                placeholder="사용자 이름"
+                value={withdrawalInfo.name}
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-red-500 text-slate-900"
+                onChange={(e) => setWithdrawalInfo({ ...withdrawalInfo, name: e.target.value })}
+              />
+              <input
+                type="email"
+                placeholder="등록된 이메일"
+                value={withdrawalInfo.email}
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-red-500 text-slate-900"
+                onChange={(e) => setWithdrawalInfo({ ...withdrawalInfo, email: e.target.value })}
+              />
+              <input
+                type="text"
+                placeholder="연락처 (하이픈 포함)"
+                value={withdrawalInfo.phone}
+                maxLength={13}
+                className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:ring-2 focus:ring-red-500 text-slate-900"
+                onChange={(e) => setWithdrawalInfo({ ...withdrawalInfo, phone: formatPhoneNumber(e.target.value) })}
+              />
+            </div>
+
+            <div className="mt-6 p-4 bg-red-50 text-red-700 rounded-xl text-xs font-medium border border-red-100">
+              ※ 탈퇴 신청 시 즉시 계정이 비활성화되며, 모든 배송 데이터 및 개인정보는 관리자 확인 후 영구 삭제되어 복구가 불가능합니다.
+            </div>
+
+            <div className="flex gap-3 mt-8">
+              <button 
+                onClick={() => setIsWithdrawalModalOpen(false)}
+                className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-xl font-black hover:bg-slate-200"
+              >
+                닫기
+              </button>
+              <button 
+                onClick={handleWithdrawalRequest}
+                disabled={isWithdrawalSubmitting}
+                className="flex-1 py-4 bg-red-600 text-white rounded-xl font-black hover:bg-red-700 shadow-lg disabled:bg-slate-400"
+              >
+                {isWithdrawalSubmitting ? "처리 중..." : "삭제 요청"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
