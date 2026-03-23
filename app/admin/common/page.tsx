@@ -112,9 +112,35 @@ export default function CommonCodePage() {
     if (!selectedMCode) return alert('대분류를 먼저 선택해주세요.');
     setLoading(true);
     try {
+      // 1. DB에서 해당 대분류(mcode)의 가장 큰 소분류(ccode)를 직접 조회
+      const { data: lastData, error: fetchError } = await supabase
+        .from('ks_common')
+        .select('comm_ccode')
+        .eq('comm_mcode', selectedMCode)
+        .order('comm_ccode', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116은 데이터가 없을 때 발생하는 코드
+        throw fetchError;
+      }
+      // 2. 신규 코드 결정
+      // 데이터가 있으면 마지막 값 + 1, 없으면 mcode + '001'
+      let nextCCode;
+      if (lastData) {
+        nextCCode = (BigInt(lastData.comm_ccode) + BigInt(1)).toString().padStart(6, '0');
+      } else {
+        nextCCode = selectedMCode + '001';
+      }
       // 현재 그룹의 마지막 ccode 찾기
-      const lastSub = subCodes.length > 0 ? subCodes[subCodes.length - 1].comm_ccode : selectedMCode + '000';
-      const nextCCode = (parseInt(lastSub) + 1).toString();
+      // const lastSub = subCodes.length > 0 ? subCodes[subCodes.length - 1].comm_ccode : selectedMCode + '000';
+      // const nextCCode = (BigInt(lastSub) + BigInt(1)).toString().padStart(6, '0');
+      // console.log("-------------------------------");
+      // console.log("선택된 대분류(MCode):", selectedMCode);
+      // console.log("마지막 소분류(LastSub):", lastSub);
+      // console.log("생성된 신규코드(NextCCode):", nextCCode);
+      // console.log("데이터 타입:", typeof nextCCode);
+      // console.log("-------------------------------");
 
       const { error } = await supabase.from('ks_common').insert([{
         ...newSub,
