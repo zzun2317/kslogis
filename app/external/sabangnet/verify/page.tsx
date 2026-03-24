@@ -122,18 +122,26 @@ export default function SabangnetVerifyPage() {
 														{item.receive_info}
 													</div>
 												</td>
-												<td className="px-4 py-3 border-r border-slate-100">
-													<div className="text-[11px] text-slate-400 italic">#{item.mall_product_id}</div>
-													<div className={`font-medium line-clamp-2 leading-snug ${isMappingFailed ? 'text-red-600 font-bold' : 'text-slate-700'}`}>
-														{item.product_name}
-														{isMappingFailed && <span className="ml-1 text-[10px] text-red-500 animate-pulse">[미매칭]</span>}
+												<td className="px-4 py-3 border-r border-slate-100 min-w-max">
+													<div className="flex flex-col min-w-[300px]">
+														<div className="text-[11px] text-slate-400 italic whitespace-nowrap">
+															#{item.mall_product_id}
+														</div>
+														<div className={`font-medium text-[13px] leading-snug whitespace-pre-wrap break-all ${isMappingFailed ? 'text-red-600 font-bold' : 'text-slate-700'}`}>
+															{item.product_name}
+															{isMappingFailed && <span className="ml-1 text-[10px] text-red-500 animate-pulse">[미매칭]</span>}
+														</div>
 													</div>
 												</td>
 
 												{/* 2. ERP세트품명 부분 수정 */}
-												<td className="px-4 py-3 text-slate-700 border-r border-slate-100 bg-slate-50/50">
-													<div className="text-[12px] font-bold text-blue-700 leading-snug line-clamp-2">
-														{item.erp_set_name || <span className="text-slate-300 font-normal">매칭 정보 없음</span>}
+												<td className="px-4 py-3 text-slate-700 border-r border-slate-100 bg-slate-50/50 min-w-max">
+													<div className="flex flex-col min-w-[300px]">
+														<div className="text-[12px] font-bold text-blue-700 leading-snug whitespace-pre-wrap break-all">
+															{item.erp_set_name || (
+																<span className="text-slate-300 font-normal">매칭 정보 없음</span>
+															)}
+														</div>
 													</div>
 												</td>
 												<td className="px-4 py-3 text-slate-900 font-bold border-r border-slate-100 text-right">
