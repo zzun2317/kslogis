@@ -16,7 +16,7 @@ export default function SabangnetVerifyPage() {
   }, []);
 
   // 2. 데이터 조회 함수
-  const fetchTempOrders = async (date: string) => {
+	const fetchTempOrders = async (date: string) => {
 		setIsLoading(true);
 		try {
 			// 직접 쿼리 대신 생성하신 RPC 함수(예: fn_get_sabangnet_verify_list)를 호출합니다.
@@ -74,20 +74,20 @@ export default function SabangnetVerifyPage() {
           <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1">
             <table className="min-w-full border-collapse text-[13px]">
               <thead className="bg-slate-900 sticky top-0 z-20">
-                <tr>
-                  <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">주문번호(ID)</th>
-                  <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">주문일자</th>
-                  <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">거래처(매체)</th>
-                  <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">주문인</th>
-                  <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">납품처 (수취인/연락처/주소)</th>
-                  <th className="w-1/6 px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">품목(상품명)</th>
-									<th className="w-1/6 px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">ERP세트품명</th>
-                  <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">수량</th>
-                  <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">단가</th>
-                  <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">창고</th>
-                  <th className="px-4 py-4 text-white font-bold whitespace-nowrap">비고</th>
-                </tr>
-              </thead>
+								<tr>
+									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">주문번호(ID)</th>
+									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">주문일자</th>
+									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[150px]">거래처(매체)</th>
+									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[120px]">주문인</th>
+									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[300px]">납품처 (수취인/연락처/주소)</th>
+									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[250px]">품목(상품명)</th>
+									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[250px]">ERP세트품명</th>
+									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap text-right">수량</th>
+									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap text-right min-w-[100px]">단가</th>
+									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap text-center min-w-[100px]">창고</th>
+									<th className="px-4 py-4 text-white font-bold whitespace-nowrap min-w-[250px]">비고</th>
+								</tr>
+							</thead>
               <tbody className="divide-y divide-slate-200">
 								{orders.length > 0 ? (
 									orders.map((item) => {
@@ -110,46 +110,45 @@ export default function SabangnetVerifyPage() {
 														</span>
 													</div>
 												</td>
-												<td className="px-4 py-3 text-slate-700 border-r border-slate-100">
+												<td className="px-4 py-3 text-slate-700 border-r border-slate-100 whitespace-nowrap">
 													{item.mall_id}
 												</td>
-												<td className="px-4 py-3 text-slate-700 border-r border-slate-100">
+												<td className="px-4 py-3 text-slate-700 border-r border-slate-100 whitespace-nowrap">
 													<div className="font-bold">{item.user_name}</div>
 													<div className="text-[11px] text-slate-400">{item.user_cel}</div>
 												</td>
-												<td className="px-4 py-3 text-slate-700 border-r border-slate-100 max-w-xs">
-													{/* DB RPC에서 가공해서 내려준 receive_info를 그대로 사용합니다. */}
-													<div className="text-[12px] text-slate-700 leading-snug whitespace-pre-wrap">
+												<td className="px-4 py-3 text-slate-700 border-r border-slate-100">
+													<div className="text-[12px] text-slate-700 leading-snug line-clamp-3 whitespace-pre-wrap">
 														{item.receive_info}
 													</div>
 												</td>
-												<td className="w-1/6 px-4 py-3 border-r border-slate-100">
+												<td className="px-4 py-3 border-r border-slate-100">
 													<div className="text-[11px] text-slate-400 italic">#{item.mall_product_id}</div>
-													<div className={`font-medium line-clamp-2 ${isMappingFailed ? 'text-red-600 font-bold' : 'text-slate-700'}`}>
+													<div className={`font-medium line-clamp-2 leading-snug ${isMappingFailed ? 'text-red-600 font-bold' : 'text-slate-700'}`}>
 														{item.product_name}
 														{isMappingFailed && <span className="ml-1 text-[10px] text-red-500 animate-pulse">[미매칭]</span>}
 													</div>
 												</td>
 
-												{/* ERP세트품명: 품목과 동일한 너비, 매핑된 값 표시 */}
-												<td className="w-1/6 px-4 py-3 text-slate-700 border-r border-slate-100 bg-slate-50/50">
-													<div className="text-[12px] font-bold text-blue-700 leading-snug">
-														{item.erp_set_name || (
-															<span className="text-slate-300 font-normal">매칭 정보 없음</span>
-														)}
+												{/* 2. ERP세트품명 부분 수정 */}
+												<td className="px-4 py-3 text-slate-700 border-r border-slate-100 bg-slate-50/50">
+													<div className="text-[12px] font-bold text-blue-700 leading-snug line-clamp-2">
+														{item.erp_set_name || <span className="text-slate-300 font-normal">매칭 정보 없음</span>}
 													</div>
 												</td>
 												<td className="px-4 py-3 text-slate-900 font-bold border-r border-slate-100 text-right">
 													{Number(item.sale_cnt).toLocaleString()}
 												</td>
-												<td className="px-4 py-3 text-slate-600 border-r border-slate-100 text-right">
-													{Number(item.pay_cost).toLocaleString()}원
+												<td className="px-4 py-3 text-slate-600 border-r border-slate-100 text-right whitespace-nowrap">
+													{Number(item.pay_cost).toLocaleString()}
 												</td>
-												<td className="px-4 py-3 text-slate-700 border-r border-slate-100 text-center">
+												<td className="px-4 py-3 text-slate-700 border-r border-slate-100 text-center whitespace-nowrap">
 													{item.dpartner_id}
 												</td>
 												<td className="px-4 py-3 text-slate-500">
-													{item.delv_msg1 || '-'}
+													<div className="line-clamp-3 text-[12px] leading-snug">
+														{item.delv_msg1 || '-'}
+													</div>
 												</td>
 											</tr>
 										);
