@@ -50,7 +50,7 @@ export default function SabangnetVerifyPage() {
           </div>
 
           <div className="flex items-center gap-3 bg-slate-100 p-2 rounded-xl border border-slate-200">
-            <label className="text-sm font-bold text-slate-700 ml-2">주문일자 조회</label>
+            <label className="text-sm font-bold text-slate-700 ml-2">수집일자 조회</label>
             <input 
               type="date" 
               value={searchDate}
