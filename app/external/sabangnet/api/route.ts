@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     const formattedStart = startDate.replace(/-/g, '');
     const formattedEnd = endDate.replace(/-/g, '');
 
-    // 2. 사방넷이 읽어갈 우리 서버의 가이드 주소 (Vercel 주소 사용)
+    // 2. 사방넷이 읽어갈 kslogis 서버의 가이드 주소 (Vercel 주소 사용)
     const xmlUrl = `https://kslogis.vercel.app/api/sabangnet/xml-guide?startDate=${formattedStart}&endDate=${formattedEnd}&orderStatus=${orderStatus}`;
     // console.log("--------------------------------");
     // console.log("생성된 xmlUrl:", xmlUrl);
