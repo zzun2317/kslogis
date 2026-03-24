@@ -91,6 +91,7 @@ export default function SabangnetVerifyPage() {
               <tbody className="divide-y divide-slate-200">
 								{orders.length > 0 ? (
 									orders.map((item) => {
+										const isMappingFailed = !item.erp_set_name;
 										// 이제 raw_data를 거칠 필요 없이 item에서 직접 추출합니다.
 										return (
 											<tr key={item.temp_seq} className="hover:bg-blue-50 transition-colors">
@@ -122,13 +123,20 @@ export default function SabangnetVerifyPage() {
 														{item.receive_info}
 													</div>
 												</td>
-												<td className="px-4 py-3 text-slate-700 border-r border-slate-100">
+												<td className="w-1/6 px-4 py-3 border-r border-slate-100">
 													<div className="text-[11px] text-slate-400 italic">#{item.mall_product_id}</div>
-													<div className="font-medium">{item.product_name}</div>
+													<div className={`font-medium line-clamp-2 ${isMappingFailed ? 'text-red-600 font-bold' : 'text-slate-700'}`}>
+														{item.product_name}
+														{isMappingFailed && <span className="ml-1 text-[10px] text-red-500 animate-pulse">[미매칭]</span>}
+													</div>
 												</td>
-												<td className="px-4 py-3 text-slate-700 border-r border-slate-100 max-w-xs">
-													<div className="text-[12px] text-slate-700 leading-snug whitespace-pre-wrap">
-														{/* 빈칸 */}
+
+												{/* ERP세트품명: 품목과 동일한 너비, 매핑된 값 표시 */}
+												<td className="w-1/6 px-4 py-3 text-slate-700 border-r border-slate-100 bg-slate-50/50">
+													<div className="text-[12px] font-bold text-blue-700 leading-snug">
+														{item.erp_set_name || (
+															<span className="text-slate-300 font-normal">매칭 정보 없음</span>
+														)}
 													</div>
 												</td>
 												<td className="px-4 py-3 text-slate-900 font-bold border-r border-slate-100 text-right">
