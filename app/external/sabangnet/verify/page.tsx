@@ -80,9 +80,10 @@ export default function SabangnetVerifyPage() {
                   <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">거래처(매체)</th>
                   <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">주문인</th>
                   <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">납품처 (수취인/연락처/주소)</th>
-                  <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">품목(상품명)</th>
-                  <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap text-right">수량</th>
-                  <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap text-right">단가</th>
+                  <th className="w-1/6 px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">품목(상품명)</th>
+									<th className="w-1/6 px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">ERP세트품명</th>
+                  <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">수량</th>
+                  <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">단가</th>
                   <th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">창고</th>
                   <th className="px-4 py-4 text-white font-bold whitespace-nowrap">비고</th>
                 </tr>
@@ -99,8 +100,14 @@ export default function SabangnetVerifyPage() {
 														<span>{item.order_id}</span>
 													</div>
 												</td>
-												<td className="px-4 py-3 text-slate-700 border-r border-slate-100 text-center">
-													{item.order_date}
+												{/* 주문일자 및 수집일시 (중요!) */}
+												<td className="px-4 py-3 border-r border-slate-100 text-center">
+													<div className="flex flex-col items-center">
+														<span className="text-slate-700 font-medium">{item.order_date}</span>
+														<span className="text-[11px] text-slate-400 mt-0.5">
+															수집: {item.reg_date ? `${item.reg_date.substring(8,10)}:${item.reg_date.substring(10,12)}` : '-'}
+														</span>
+													</div>
 												</td>
 												<td className="px-4 py-3 text-slate-700 border-r border-slate-100">
 													{item.mall_id}
@@ -118,6 +125,11 @@ export default function SabangnetVerifyPage() {
 												<td className="px-4 py-3 text-slate-700 border-r border-slate-100">
 													<div className="text-[11px] text-slate-400 italic">#{item.mall_product_id}</div>
 													<div className="font-medium">{item.product_name}</div>
+												</td>
+												<td className="px-4 py-3 text-slate-700 border-r border-slate-100 max-w-xs">
+													<div className="text-[12px] text-slate-700 leading-snug whitespace-pre-wrap">
+														{/* 빈칸 */}
+													</div>
 												</td>
 												<td className="px-4 py-3 text-slate-900 font-bold border-r border-slate-100 text-right">
 													{Number(item.sale_cnt).toLocaleString()}
