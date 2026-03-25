@@ -58,12 +58,19 @@ export default function SabangnetVerifyPage() {
               className="border border-slate-300 px-3 h-10 rounded-lg text-black focus:ring-2 focus:ring-blue-500 outline-none"
             />
             <button 
-              onClick={() => fetchTempOrders(searchDate)}
-              disabled={isLoading}
-              className="bg-slate-900 text-white px-5 h-10 rounded-lg font-bold hover:bg-blue-600 transition-all active:scale-95 disabled:bg-slate-400"
-            >
-              {isLoading ? '조회 중...' : '데이터 조회'}
-            </button>
+							onClick={() => fetchTempOrders(searchDate)}
+							disabled={isLoading}
+							className="bg-slate-900 text-white px-5 h-10 rounded-lg font-bold hover:bg-blue-600 transition-all active:scale-95 disabled:bg-slate-400 flex items-center gap-2"
+						>
+							{isLoading ? '조회 중...' : (
+								<>
+									<span>데이터 조회</span>
+									<span className="bg-blue-500 text-[11px] px-2 py-0.5 rounded-full shadow-inner">
+										{orders.length.toLocaleString()}건
+									</span>
+								</>
+							)}
+						</button>
           </div>
         </div>
       </div>
@@ -82,8 +89,8 @@ export default function SabangnetVerifyPage() {
 									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[300px]">납품처 (수취인/연락처/주소)</th>
 									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[250px]">품목(상품명)</th>
 									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[250px]">ERP세트품명</th>
-									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap text-right">수량</th>
-									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap text-right min-w-[100px]">단가</th>
+									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">수량</th>
+									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[100px]">단가</th>
 									<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap text-center min-w-[100px]">창고</th>
 									<th className="px-4 py-4 text-white font-bold whitespace-nowrap min-w-[250px]">비고</th>
 								</tr>
