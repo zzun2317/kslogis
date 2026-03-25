@@ -49,13 +49,13 @@ export default function SabangnetVerifyPage() {
             <p className="text-slate-500 text-sm mt-1 font-medium">임시 테이블에 저장된 주문 건을 확인합니다.</p>
           </div>
 
-          <div className="flex items-center gap-3 bg-slate-100 p-2 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-3 bg-white bg-slate-100 p-2 rounded-xl border border-slate-200">
             <label className="text-sm font-bold text-slate-700 ml-2">수집일자 조회</label>
             <input 
               type="date" 
               value={searchDate}
               onChange={(e) => setSearchDate(e.target.value)}
-              className="border border-slate-300 px-3 h-10 rounded-lg text-black focus:ring-2 focus:ring-blue-500 outline-none"
+              className="border border-slate-300 px-3 h-10 rounded-lg bg-white text-black focus:ring-2 focus:ring-blue-500 outline-none"
             />
             <button 
 							onClick={() => fetchTempOrders(searchDate)}
