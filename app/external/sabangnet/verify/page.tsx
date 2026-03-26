@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '@/lib/supabase'; // 설정된 경로에 맞게 수정 필요
 
 export default function SabangnetVerifyPage() {
@@ -10,6 +10,8 @@ export default function SabangnetVerifyPage() {
 	const [originalOrders, setOriginalOrders] = useState<any[]>([]);
 	const topScrollRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
+	const [tableWidth, setTableWidth] = useState(0);
+	
 
   // 1. 초기 시스템 날짜 설정 (오늘 날짜)
   useEffect(() => {
@@ -18,15 +20,32 @@ export default function SabangnetVerifyPage() {
     fetchTempOrders(today);
   }, []);
 
-	// 스크롤 동기화 함수
-  const syncScroll = (
-		source: React.RefObject<HTMLDivElement | null>, // | null 추가
-		target: React.RefObject<HTMLDivElement | null>  // | null 추가
-	) => {
-		if (source.current && target.current) {
-			target.current.scrollLeft = source.current.scrollLeft;
-		}
-	};
+	// 2. 테이블 너비를 실시간으로 계산하는 useEffect
+  useEffect(() => {
+    const updateWidth = () => {
+      if (tableContainerRef.current) {
+        // 테이블 본체의 실제 스크롤 가능 너비를 가져옴
+        setTableWidth(tableContainerRef.current.scrollWidth);
+      }
+    };
+
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, [orders]); // 데이터(orders)가 로드될 때마다 재측정
+
+  // 2. 양방향 스크롤 싱크 함수 (배송 수정 페이지 로직 적용)
+  const onTopScroll = () => {
+    if (topScrollRef.current && tableContainerRef.current) {
+      tableContainerRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+  };
+
+  const onBottomScroll = () => {
+    if (topScrollRef.current && tableContainerRef.current) {
+      topScrollRef.current.scrollLeft = tableContainerRef.current.scrollLeft;
+    }
+  };
 
   // 2. 데이터 조회 함수
 	const fetchTempOrders = async (date: string) => {
@@ -51,13 +70,11 @@ export default function SabangnetVerifyPage() {
 	};
 
 	// 3. ERP 세트명 실시간 수정 핸들러 (독립적으로 선언)
-  const handleErpNameChange = (tempSeq: number, newValue: string) => {
-    setOrders(prev => 
-      prev.map(order => 
-        order.temp_seq === tempSeq ? { ...order, erp_set_name: newValue } : order
-      )
-    );
-  };
+  const handleFieldChange = (tempSeq: number, field: string, value: string) => {
+  setOrders(prev => prev.map(item => 
+    item.temp_seq === tempSeq ? { ...item, [field]: value } : item
+  ));
+};
 
 	// 특정 행의 데이터가 변경되었는지 확인
 	const isRowChanged = (item: any) => {
@@ -77,7 +94,15 @@ export default function SabangnetVerifyPage() {
 			setIsLoading(true);
 			const { error } = await supabase.rpc('fn_insert_shopitem_from_sabang', {
 				p_idx: item.idx,
-				p_erp_set_name: item.erp_set_name
+				p_erp_set_name: item.erp_set_name,
+				p_erp_underboard: item.erp_underboard,
+				p_erp_sideboard: item.erp_sideboard,
+				p_erp_connboard: item.erp_connboard,
+				p_erp_mattress: item.erp_mattress,
+				p_erp_outsideboard: item.erp_outsideboard,
+				p_erp_footboard: item.erp_footboard,
+				p_erp_gift: item.erp_gift,
+				p_erp_etc: item.erp_item
 			});
 
 			if (error) throw error;
@@ -105,7 +130,7 @@ export default function SabangnetVerifyPage() {
 		}
 	};
 
-  return (
+	return (
     <div className="flex flex-col h-screen bg-slate-50">
       {/* 헤더 섹션 */}
       <div className="p-6 bg-white border-b border-slate-200 shadow-sm">
@@ -146,13 +171,15 @@ export default function SabangnetVerifyPage() {
 
 			{/* 상단 가로 스크롤 동기화용 더미 바 */}
       <div 
-        ref={topScrollRef}
-        onScroll={() => syncScroll(topScrollRef, tableContainerRef)}
-        className="overflow-x-auto overflow-y-hidden border-b border-slate-100 custom-scrollbar"
-        style={{ height: '12px' }} // 스크롤바 두께만큼 확보
-      >
-        <div style={{ width: tableContainerRef.current?.scrollWidth || '2500px', height: '1px' }}></div>
-      </div>
+				ref={topScrollRef}
+				onScroll={onTopScroll}
+				// 배송 수정 페이지와 동일한 스타일 적용 (rounded-t-xl, border-t 등)
+				className="overflow-x-auto overflow-y-hidden bg-white border-x border-t border-slate-200 rounded-t-xl custom-scrollbar"
+				style={{ height: '18px', minHeight: '18px' }}
+			>
+				{/* 실제 테이블 너비를 반영하도록 설정 */}
+				<div style={{ width: `${tableWidth}px`, height: '1px' }}></div>
+			</div>
 
       {/* 테이블 섹션 */}
       <div className="flex-1 p-6 overflow-hidden">
@@ -160,10 +187,10 @@ export default function SabangnetVerifyPage() {
           <div className="overflow-x-auto overflow-y-auto custom-scrollbar flex-1">
 						<div 
 							ref={tableContainerRef}
-							onScroll={() => syncScroll(tableContainerRef, topScrollRef)}
+							onScroll={onBottomScroll}
 							className="flex-1 overflow-auto custom-scrollbar"
 						>
-							<table className="min-w-full border-collapse text-[13px]">
+							<table className="min-w-full border-collapse">
 								<thead className="bg-slate-900 sticky top-0 z-20">
 									<tr>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">주문번호(ID)</th>
@@ -171,10 +198,18 @@ export default function SabangnetVerifyPage() {
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[150px]">거래처(매체)</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[120px]">주문인</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[300px]">납품처 (수취인/연락처/주소)</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">수량</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[250px]">품목(상품명)</th>
 										<th className="px-3 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap w-[60px] text-center">저장</th>
-										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[250px]">ERP세트품명</th>
-										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">수량</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[250px] decoration-slate-600/90 underline underline-offset-4 decoration-3">ERP세트품명</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[200px] text-center decoration-slate-600/90 underline underline-offset-4 decoration-3">깔판</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[200px] text-center decoration-slate-600/90 underline underline-offset-4 decoration-3">측판</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[200px] text-center decoration-slate-600/90 underline underline-offset-4 decoration-3">발통</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[200px] text-center decoration-slate-600/90 underline underline-offset-4 decoration-3">매트</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[200px] text-center decoration-slate-600/90 underline underline-offset-4 decoration-3">협탁</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[200px] text-center decoration-slate-600/90 underline underline-offset-4 decoration-3">후드</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[200px] text-center decoration-slate-600/90 underline underline-offset-4 decoration-3">사은품</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[200px] text-center decoration-slate-600/90 underline underline-offset-4 decoration-3">기타</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[100px]">단가</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap text-center min-w-[100px]">창고</th>
 										<th className="px-4 py-4 text-white font-bold whitespace-nowrap min-w-[250px]">비고</th>
@@ -184,6 +219,7 @@ export default function SabangnetVerifyPage() {
 									{orders.length > 0 ? (
 										orders.map((item) => {
 											const isMappingFailed = !item.erp_set_name;
+											const infoInputStyle = "w-full px-2 py-1 text-[12px] text-slate-900 bg-white border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-medium";
 											// 이제 raw_data를 거칠 필요 없이 item에서 직접 추출합니다.
 											return (
 												<tr key={item.temp_seq} className="hover:bg-blue-50 transition-colors">
@@ -213,6 +249,9 @@ export default function SabangnetVerifyPage() {
 														<div className="text-[12px] text-slate-700 leading-snug line-clamp-3 whitespace-pre-wrap">
 															{item.receive_info}
 														</div>
+													</td>
+													<td className="px-4 py-3 text-[12px] text-slate-900 font-bold border-r border-slate-100 text-left">
+														{Number(item.sale_cnt).toLocaleString()}
 													</td>
 													<td className="px-4 py-3 border-r border-slate-100 min-w-max">
 														<div className="flex flex-col min-w-[300px]">
@@ -252,7 +291,7 @@ export default function SabangnetVerifyPage() {
 															<input
 																type="text"
 																value={item.erp_set_name || ''}
-																onChange={(e) => handleErpNameChange(item.temp_seq, e.target.value)}
+																onChange={(e) => handleFieldChange(item.temp_seq, 'erp_set_name', e.target.value)}
 																placeholder="매칭 정보 입력"
 																className={`w-full px-3 py-2 text-[12px] font-bold rounded-lg border transition-all outline-none
 																	${!item.erp_set_name 
@@ -267,8 +306,29 @@ export default function SabangnetVerifyPage() {
 															)}
 														</div>
 													</td>
-													<td className="px-4 py-3 text-slate-900 font-bold border-r border-slate-100 text-right">
-														{Number(item.sale_cnt).toLocaleString()}
+													<td className="px-2 py-1 border-r border-slate-100">
+														<input type="text" value={item.erp_underboard || ''} onChange={(e) => handleFieldChange(item.temp_seq, 'erp_underboard', e.target.value)} className={infoInputStyle} />
+													</td>
+													<td className="px-2 py-1 border-r border-slate-100">
+														<input type="text" value={item.erp_sideboard || ''} onChange={(e) => handleFieldChange(item.temp_seq, 'erp_sideboard', e.target.value)} className={infoInputStyle} />
+													</td>
+													<td className="px-2 py-1 border-r border-slate-100">
+														<input type="text" value={item.erp_connboard || ''} onChange={(e) => handleFieldChange(item.temp_seq, 'erp_connboard', e.target.value)} className={infoInputStyle} />
+													</td>
+													<td className="px-2 py-1 border-r border-slate-100">
+														<input type="text" value={item.erp_mattress || ''} onChange={(e) => handleFieldChange(item.temp_seq, 'erp_mattress', e.target.value)} className={infoInputStyle} />
+													</td>
+													<td className="px-2 py-1 border-r border-slate-100">
+														<input type="text" value={item.erp_outsideboard || ''} onChange={(e) => handleFieldChange(item.temp_seq, 'erp_outsideboard', e.target.value)} className={infoInputStyle} />
+													</td>
+													<td className="px-2 py-1 border-r border-slate-100">
+														<input type="text" value={item.erp_footboard || ''} onChange={(e) => handleFieldChange(item.temp_seq, 'erp_footboard', e.target.value)} className={infoInputStyle} />
+													</td>
+													<td className="px-2 py-1 border-r border-slate-100">
+														<input type="text" value={item.erp_gift || ''} onChange={(e) => handleFieldChange(item.temp_seq, 'erp_gift', e.target.value)} className={infoInputStyle} />
+													</td>
+													<td className="px-2 py-1 border-r border-slate-100">
+														<input type="text" value={item.erp_etc || ''} onChange={(e) => handleFieldChange(item.temp_seq, 'erp_etc', e.target.value)} className={infoInputStyle} />
 													</td>
 													<td className="px-4 py-3 text-slate-600 border-r border-slate-100 text-right whitespace-nowrap">
 														{Number(item.pay_cost).toLocaleString()}

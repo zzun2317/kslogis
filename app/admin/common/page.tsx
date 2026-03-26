@@ -117,6 +117,7 @@ export default function CommonCodePage() {
         .from('ks_common')
         .select('comm_ccode')
         .eq('comm_mcode', selectedMCode)
+        .lt('comm_ccode', selectedMCode + '900') // 900번대(관리자용) 제외. 사용자용 공통코드범위 : 00#001 ~ 00#899
         .order('comm_ccode', { ascending: false })
         .limit(1)
         .single();
