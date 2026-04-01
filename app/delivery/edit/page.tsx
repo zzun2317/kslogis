@@ -97,9 +97,9 @@ export default function DeliveryEditTablePage() {
   // --- 컬럼 너비 조절 상태 ---
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({
     no: 50, save: 60, chk: 40, devstatus_name: 110, cust_gubun: 90, ordno: 130, devcenter: 150, cust_orddate: 120,
-    devdate: 110, reqdate: 110, cust_devdelaydate: 130, name: 100, hp1: 150, hp2: 150, cust_postno: 100, address: 250, 
+    devdate: 110, reqdate: 110, cust_devdelaydate: 130, name: 100, hp1: 150, hp2: 150, cust_postno: 100, address: 300, 
     detail_addr: 200, cust_memo: 180, driver_name: 100, driver_hpno: 150, tems_btn: 100,
-    cust_setname: 150, cust_inte: 150, cost: 120, memo: 150, user_name: 100, addr_oarea: 100, area_driver_id: 120, area_driver_uuid: 200, area_driver_name: 120
+    cust_setname: 300, cust_inte: 150, cost: 120, memo: 150, user_name: 100, addr_oarea: 100, area_driver_id: 120, area_driver_uuid: 200, area_driver_name: 120
   });
 
   const stickyLeft = useMemo(() => ({
@@ -524,7 +524,8 @@ export default function DeliveryEditTablePage() {
         cust_postno: item.cust_postno,
         cust_devcost: item.cust_devcost,
         cust_devmemo: item.cust_devmemo,
-        cust_memo: item.cust_memo,      
+        cust_memo: item.cust_memo, 
+        cust_setname: item.cust_setname,           
         cust_inte: item.cust_inte,
         cust_devemail: isCancelAssign ? null : item.driver_email,
         cust_devid: isCancelAssign ? null : item.driver_id,
@@ -601,9 +602,37 @@ export default function DeliveryEditTablePage() {
   // 상세 품목 저장 로직 (DB 반영)
   const saveItemDetails = async () => {
     if (!selectedOrderForItems) return;
+    if (!selectedOrderForItems || itemDetails.length === 0) {
+      alert("저장할 품목이 없습니다.");
+      return;
+    }
+    // 1. 필수 입력 사항 체크 (품명, 수량)
+    const invalidItem = itemDetails.find(item => !item.cust_itemname || !item.cust_itemqty);
+    if (invalidItem) {
+      alert("모든 항목의 '품명'과 '수량'을 입력해주세요.");
+      return;
+    }
+
+    // 2. 품번 미입력 체크
+    const emptyCodeItem = itemDetails.find(item => !item.cust_itemcode);
+    if (emptyCodeItem) {
+      if (!confirm("품번이 입력되지 않은 항목이 있습니다.\n품번 없이 저장하시겠습니까?")) {
+        return;
+      }
+    }
     
     try {
-      // 1. 기존 해당 주문번호의 품목 전체 삭제 (단순화를 위해 삭제 후 재등록 방식 권장)
+      // 3. 기존 데이터에서 cust_outwh(출고창고) 값 가져오기 (첫 번째 데이터 기준)
+      // 만약 기존 데이터가 하나도 없다면 null이나 기본값 처리
+      const { data: existingData } = await supabase
+        .from('ks_devcustd')
+        .select('cust_outwh')
+        .eq('cust_ordno', selectedOrderForItems.cust_ordno)
+        .limit(1);
+      
+      const defaultOutWh = existingData && existingData.length > 0 ? existingData[0].cust_outwh : null;
+
+      // 4. 기존 데이터 삭제 (재등록 방식)
       const { error: deleteError } = await supabase
         .from('ks_devcustd')
         .delete()
@@ -611,29 +640,40 @@ export default function DeliveryEditTablePage() {
 
       if (deleteError) throw deleteError;
 
-      // 2. 현재 리스트에 있는 데이터를 신규 등록
-      if (itemDetails.length > 0) {
-        const insertData = itemDetails.map((item, idx) => ({
-          cust_ordno: selectedOrderForItems.cust_ordno,
-          cust_purno: idx + 1, // 순번 재정렬
-          cust_itemcode: item.cust_itemcode,
-          cust_itemname: item.cust_itemname,
-          cust_itemqty: item.cust_itemqty
-        }));
+      // 5. 새 데이터 구성 (cust_purno: 인덱스+1 방식)
+      const insertData = itemDetails.map((item, idx) => ({
+        cust_ordno: selectedOrderForItems.cust_ordno,
+        cust_purno: idx + 1, // 순번 자동 생성 (max+1 개념 반영)
+        cust_itemcode: item.cust_itemcode,
+        cust_itemname: item.cust_itemname,
+        cust_itemqty: item.cust_itemqty,
+        cust_outwh: defaultOutWh, // 기존 품목과 동일한 창고 코드
+        cust_memo: null          // 요청대로 null 처리
+      }));
 
-        const { error: insertError } = await supabase
-          .from('ks_devcustd')
-          .insert(insertData);
+      const { error: insertError } = await supabase
+        .from('ks_devcustd')
+        .insert(insertData);
 
-        if (insertError) throw insertError;
-      }
+      if (insertError) throw insertError;
 
       alert("상세 품목이 성공적으로 저장되었습니다.");
       setIsItemModalOpen(false);
     } catch (err) {
-      console.error("저장 실패:", err);
+      console.error("저장 오류:", err);
       alert("저장 중 오류가 발생했습니다.");
     }
+  };
+
+  // --- [품목 추가] 새 행 추가 핸들러 ---
+  const handleAddItem = () => {
+    const newItem = {
+      cust_itemcode: '',
+      cust_itemname: '',
+      cust_itemqty: 1,
+      isNew: true // 신규 추가 항목임을 표시
+    };
+    setItemDetails([...itemDetails, newItem]);
   };
 
   // 모달 닫기 시 확인 로직 (선택 사항)
@@ -928,7 +968,7 @@ export default function DeliveryEditTablePage() {
                   <th className={headerStyle} style={{ width: columnWidths.driver_name }}>배송기사 <ResizeHandle field="driver_name" /></th>
                   <th className={headerStyle} style={{ width: columnWidths.driver_hpno }}>기사연락처 <ResizeHandle field="driver_hpno" /></th>
                   <th className={headerStyle} style={{ width: columnWidths.items_btn }}>상세품목 <ResizeHandle field="items_btn" /></th>
-                  <th className={headerStyle} style={{ width: columnWidths.cust_setname }}>세트정보 <ResizeHandle field="cust_setname" /></th>
+                  <th className={editableHeaderStyle('cust_setname')} style={{ width: columnWidths.cust_setname }}>세트정보 <ResizeHandle field="cust_setname" /></th>
                   <th className={editableHeaderStyle('cust_inte')} style={{ width: columnWidths.cust_inte }}>시공정보 <ResizeHandle field="cust_inte" /></th>
                   <th className={editableHeaderStyle('cost')} style={{ width: columnWidths.cost }}>배송비고 <ResizeHandle field="cost" /></th>
                   <th className={editableHeaderStyle('memo')} style={{ width: columnWidths.memo }}>배송메모 <ResizeHandle field="memo" /></th>
@@ -1075,7 +1115,8 @@ export default function DeliveryEditTablePage() {
                           </button>
                         </div>
                       </td>
-                      <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_setname}</div></td>
+                      {/* <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_setname}</div></td> */}
+                      <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_setname || ''} onChange={(e) => handleInputChange(idx, 'cust_setname', e.target.value)} className={inputStyle} /></td>
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_inte || ''} onChange={(e) => handleInputChange(idx, 'cust_inte', e.target.value)} className={inputStyle} /></td>
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_devcost || ''} onChange={(e) => handleInputChange(idx, 'cust_devcost', e.target.value)} className={inputStyle} /></td>
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_devmemo || ''} onChange={(e) => handleInputChange(idx, 'cust_devmemo', e.target.value)} className={inputStyle} /></td>
@@ -1207,6 +1248,13 @@ export default function DeliveryEditTablePage() {
 
             {/* 푸터 */}
             <div className="p-6 bg-white border-t flex justify-end items-center gap-6 shrink-0">
+              {/* 품목 추가 버튼 (저장하기 왼쪽) */}
+              <button 
+                onClick={handleAddItem}
+                className="px-8 py-2.5 bg-emerald-500 text-white rounded-xl font-black text-sm hover:bg-emerald-600 transition-all shadow-md active:scale-95 flex items-center gap-2"
+              >
+                <span className="text-lg"></span> 품목 추가
+              </button>
               <button 
                 onClick={saveItemDetails}
                 className="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-black text-sm hover:bg-blue-700 transition-all shadow-lg active:scale-95 flex items-center gap-2"
