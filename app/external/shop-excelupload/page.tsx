@@ -118,7 +118,8 @@ export default function ShopExcelUploadPage() {
       sabang_idx: orderId,
       raw_data: rawData,
       order_gubun: 'sk' as const, // as const를 붙여서 타입을 고정합니다.
-      status: 'wait' as const
+      status: 'wait' as const,
+      comm_ccode: '009017' as const
     };
   };
 
@@ -159,7 +160,8 @@ export default function ShopExcelUploadPage() {
       sabang_idx: orderId,
       raw_data: rawData,
       order_gubun: '롯데' as const,
-      status: 'wait' as const
+      status: 'wait' as const,
+      comm_ccode: '009009' as const
     };
   };
 
@@ -201,7 +203,8 @@ export default function ShopExcelUploadPage() {
       sabang_idx: sabangIdx,
       raw_data: rawData,
       order_gubun: '에몬스' as const,
-      status: 'wait' as const
+      status: 'wait' as const,
+      comm_ccode: '009029' as const
     };
   };
 
@@ -231,7 +234,7 @@ export default function ShopExcelUploadPage() {
     }
 
     try {
-      const response = await fetch('/api/external/temp-order-save', {
+      const response = await fetch('/api/external/shoporder-save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(transformedData), // 변환된 전체 배열 전송
