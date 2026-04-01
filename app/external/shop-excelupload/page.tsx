@@ -117,7 +117,7 @@ export default function ShopExcelUploadPage() {
     return {
       sabang_idx: orderId,
       raw_data: rawData,
-      order_gubun: 'sk' as const, // as const를 붙여서 타입을 고정합니다.
+      order_gubun: 'SK' as const, // as const를 붙여서 타입을 고정합니다.
       status: 'wait' as const,
       comm_ccode: '009017' as const
     };
@@ -211,6 +211,8 @@ export default function ShopExcelUploadPage() {
   // 2. 메인 저장 핸들러
   const handleSaveToTemp = async () => {
     if (!selectedMall || excelData.length === 0) return;
+    // console.log('선택된 몰 정보:', selectedMall);
+    // console.log('comm_text2 값:', selectedMall.comm_text2);
 
     setIsLoading(true);
 
