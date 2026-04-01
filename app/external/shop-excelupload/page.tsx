@@ -82,11 +82,24 @@ export default function ShopExcelUploadPage() {
     // 3. readAsBinaryString 대신 readAsArrayBuffer를 사용하세요.
     reader.readAsArrayBuffer(file);
   };
+  // YYYYMMDDHHMMSS 형식의 숫자를 반환하는 함수
+  const getFormattedDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    
+    return Number(`${year}${month}${day}${hours}${minutes}${seconds}`);
+  };
 
   // 3. 임시 테이블 저장
   // SK스토아 전용 매핑 함수
   const transformSKStoa = (row: any) => {
     const orderId = String(row['주문번호']); // sabang_idx 및 IDX용
+    const regDate = getFormattedDate(); // 수집일자
 
     const rawData = {
       // 엑셀 항목 -> JSON 키 매핑
@@ -111,7 +124,8 @@ export default function ShopExcelUploadPage() {
       "DELV_MSG1": String(row['배송메시지']),
       // 고정값
       "MALL_ID": "SK스토아(방송)",
-      "MALL_USER_ID": "E207165"
+      "MALL_USER_ID": "E207165",
+      "REG_DATE": regDate
     };
 
     return {
@@ -125,6 +139,7 @@ export default function ShopExcelUploadPage() {
 
   const transformLotte = (row: any) => {
     const orderId = String(row['주문번호'] || '');
+    const regDate = getFormattedDate(); // 수집일자
 
     const rawData = {
       "ORDER_DATE": String(row['업체지시일'] || ''),
@@ -153,7 +168,8 @@ export default function ShopExcelUploadPage() {
       "DELV_MSG1": String(row['전언'] || ''),
       // 고정값
       "MALL_ID": "롯데홈쇼핑(방송)",
-      "MALL_USER_ID": "2539"
+      "MALL_USER_ID": "2539",
+      "REG_DATE": regDate
     };
 
     return {
@@ -167,6 +183,7 @@ export default function ShopExcelUploadPage() {
 
   const transformEmons = (row: any) => {
     const sabangIdx = String(row['주문번호(사방넷)'] || '');
+    const regDate = getFormattedDate(); // 수집일자
     
     // 우편번호 하이픈 제거 로직
     const rawZipCode = String(row['수취인우편번호(1)'] || '');
@@ -196,7 +213,8 @@ export default function ShopExcelUploadPage() {
       "DELV_MSG1": String(row['배송메세지'] || ''),
       "PAY_COST": String(row['공급단가*수량(횡대전용)'] || ''),
       "RECEIVE_ZIPCODE": cleanZipCode,
-      "MALL_USER_ID": "emons_ksbed" // 고정값
+      "MALL_USER_ID": "emons_ksbed",
+      "REG_DATE": regDate
     };
 
     return {

@@ -23,7 +23,10 @@ export async function POST(req: Request) {
     // temp_seq는 DB에서 자동생성(Identity)된다면 제외하고, 아니라면 로직 추가 필요
     const { error } = await supabase
       .from('temp_sabang_order')
-      .insert(dataList);
+      .upsert(dataList, { 
+        onConflict: 'sabang_idx',
+        ignoreDuplicates: false // false가 기본값이며, 중복 시 업데이트를 수행합니다.
+      });
 
     // 대량 인서트 (Chunking이 필요할 정도로 많다면 분할 처리 권장)
     if (error) {
