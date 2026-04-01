@@ -7,11 +7,11 @@ import { useAuth } from '@/hook/useAuth';
 
 export default function DeliveryEditTablePage() {
   // 1. 커스텀 훅을 통한 권한 정보 추출
-  const { user, isLocalManager, userCenterList, canEdit, isDriver, isMaster } = useAuth();
+  const { user, isLocalManager, userCenterList, canEdit, isDriver, isMaster, userLevel } = useAuth();
   const COMPLETE_STATUS = '002003'; // 배송완료 상태 코드
   
   const isRowEditable = (item: any) => {
-    if (!canEdit) return false; // 기본 권한 없으면 차단 [cite: 43]
+    if (!canEdit) return false; // 기본 권한 없으면 차단
     if (isMaster) return true;  // 슈퍼관리자(001001), 관리자(001002)는 무조건 허용
   
     // 그 외 권한은 배송완료 상태가 아닐 때만 수정 가능
@@ -50,6 +50,12 @@ export default function DeliveryEditTablePage() {
   const [isResizing, setIsResizing] = useState(false);
   const [isDataLimitReached, setIsDataLimitReached] = useState(false); // 1000건 이상 조회 시 경고 메시지 표시 여부
   const [dateSearchType, setDateSearchType] = useState<'DEV' | 'ORD'>('ORD'); // 배송일자 검색 기준 선택 (DEV: 배송일자, ORD: 수주일자)
+  // --- 상세품목 모달 상태 관리 ---
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
+  const [selectedOrderForItems, setSelectedOrderForItems] = useState<any>(null);
+  // --- [상태 추가] 상세 품목 데이터 저장 ---
+  const [itemDetails, setItemDetails] = useState<any[]>([]);
+  const [isItemLoading, setIsItemLoading] = useState(false);
   
   // --- 목록 및 마스터 데이터 관리 ---
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
@@ -92,7 +98,7 @@ export default function DeliveryEditTablePage() {
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({
     no: 50, save: 60, chk: 40, devstatus_name: 110, cust_gubun: 90, ordno: 130, devcenter: 150, cust_orddate: 120,
     devdate: 110, reqdate: 110, cust_devdelaydate: 130, name: 100, hp1: 150, hp2: 150, cust_postno: 100, address: 250, 
-    detail_addr: 200, cust_memo: 180, driver_name: 100, driver_hpno: 150, 
+    detail_addr: 200, cust_memo: 180, driver_name: 100, driver_hpno: 150, tems_btn: 100,
     cust_setname: 150, cust_inte: 150, cost: 120, memo: 150, user_name: 100, addr_oarea: 100, area_driver_id: 120, area_driver_uuid: 200, area_driver_name: 120
   });
 
@@ -552,6 +558,92 @@ export default function DeliveryEditTablePage() {
     }
   };
 
+  // 상세품목 모달 오픈 함수
+  const openItemModal = async (item: any) => {
+    setSelectedOrderForItems(item);
+    setIsItemModalOpen(true);
+    setIsItemLoading(true);
+
+    try {
+      // ks_devcustd 테이블에서 해당 주문번호의 품목 조회
+      const { data, error } = await supabase
+        .from('ks_devcustd')
+        .select('cust_purno, cust_itemcode, cust_itemname, cust_itemqty')
+        .eq('cust_ordno', item.cust_ordno)
+        .order('cust_purno', { ascending: true });
+
+      if (error) throw error;
+      setItemDetails(data || []);
+    } catch (err) {
+      console.error('품목 조회 실패:', err);
+      alert('품목 데이터를 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setIsItemLoading(false);
+    }
+  };
+
+  // 상세 품목 필드 수정 핸들러
+  const handleItemChange = (index: number, field: string, value: any) => {
+    const updatedItems = [...itemDetails];
+    updatedItems[index] = { ...updatedItems[index], [field]: value };
+    setItemDetails(updatedItems);
+  };
+
+  // 상세 품목 행 삭제 (리스트에서 제거)
+  const handleItemDelete = (index: number) => {
+    const confirmMessage = "해당 품목을 삭제하시겠습니까?\n삭제 후 저장 버튼을 눌러야 최종 적용됩니다.";
+    if (confirm(confirmMessage)) {
+      const updatedItems = itemDetails.filter((_, i) => i !== index);
+      setItemDetails(updatedItems);
+    }
+  };
+
+  // 상세 품목 저장 로직 (DB 반영)
+  const saveItemDetails = async () => {
+    if (!selectedOrderForItems) return;
+    
+    try {
+      // 1. 기존 해당 주문번호의 품목 전체 삭제 (단순화를 위해 삭제 후 재등록 방식 권장)
+      const { error: deleteError } = await supabase
+        .from('ks_devcustd')
+        .delete()
+        .eq('cust_ordno', selectedOrderForItems.cust_ordno);
+
+      if (deleteError) throw deleteError;
+
+      // 2. 현재 리스트에 있는 데이터를 신규 등록
+      if (itemDetails.length > 0) {
+        const insertData = itemDetails.map((item, idx) => ({
+          cust_ordno: selectedOrderForItems.cust_ordno,
+          cust_purno: idx + 1, // 순번 재정렬
+          cust_itemcode: item.cust_itemcode,
+          cust_itemname: item.cust_itemname,
+          cust_itemqty: item.cust_itemqty
+        }));
+
+        const { error: insertError } = await supabase
+          .from('ks_devcustd')
+          .insert(insertData);
+
+        if (insertError) throw insertError;
+      }
+
+      alert("상세 품목이 성공적으로 저장되었습니다.");
+      setIsItemModalOpen(false);
+    } catch (err) {
+      console.error("저장 실패:", err);
+      alert("저장 중 오류가 발생했습니다.");
+    }
+  };
+
+  // 모달 닫기 시 확인 로직 (선택 사항)
+  const closeItemModal = () => {
+    // 변경사항이 있는지 체크 (간단하게 개수나 데이터 변경 여부 확인)
+    // 여기서는 단순히 닫지만, 필요시 "변경사항이 저장되지 않을 수 있습니다" 알림 추가 가능
+    setIsItemModalOpen(false);
+    setItemDetails([]); // 데이터 초기화
+  };
+
   // --- 스타일 정의 ---
   const inputStyle = "w-full bg-transparent px-2 py-1 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none border-none transition-all font-bold text-slate-700 rounded text-sm disabled:cursor-default disabled:focus:bg-transparent";
   const readOnlyStyle = "w-full px-2 py-1 text-sm font-medium text-slate-500 bg-transparent truncate text-center select-none cursor-default";
@@ -835,6 +927,7 @@ export default function DeliveryEditTablePage() {
                   <th className={editableHeaderStyle('cust_memo')} style={{ width: columnWidths.cust_memo }}>고객요청 <ResizeHandle field="cust_memo" /></th>
                   <th className={headerStyle} style={{ width: columnWidths.driver_name }}>배송기사 <ResizeHandle field="driver_name" /></th>
                   <th className={headerStyle} style={{ width: columnWidths.driver_hpno }}>기사연락처 <ResizeHandle field="driver_hpno" /></th>
+                  <th className={headerStyle} style={{ width: columnWidths.items_btn }}>상세품목 <ResizeHandle field="items_btn" /></th>
                   <th className={headerStyle} style={{ width: columnWidths.cust_setname }}>세트정보 <ResizeHandle field="cust_setname" /></th>
                   <th className={editableHeaderStyle('cust_inte')} style={{ width: columnWidths.cust_inte }}>시공정보 <ResizeHandle field="cust_inte" /></th>
                   <th className={editableHeaderStyle('cost')} style={{ width: columnWidths.cost }}>배송비고 <ResizeHandle field="cost" /></th>
@@ -908,7 +1001,7 @@ export default function DeliveryEditTablePage() {
                         </select>
                       </td>
                       
-                      {/* 수주자 (조회전용) */}
+                      {/* 수주일자 (조회전용) */}
                       <td className={cellStyle}>
                         <div className={readOnlyStyle} style={{ color: item.devstatus_color || '#64748b', fontWeight: 'bold' }}>
                           {item.cust_orddate || ''}
@@ -932,23 +1025,56 @@ export default function DeliveryEditTablePage() {
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_hpno2 || ''} onChange={(e) => handleInputChange(idx, 'cust_hpno2', e.target.value)} className={inputStyle} /></td>
 
                       {/* 우편번호 데이터 출력 (수정 불가) */}
-                      <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_postno}</div></td>
+                      {/* <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_postno}</div></td> */}
+                      {/* 우편번호 컬럼: 클릭 시 주소 검색 팝업 실행 */}
+                      <td className={cellStyle}>
+                        <input
+                          type="text"
+                          value={item.cust_postno || ''}
+                          readOnly // 직접 입력은 막음
+                          onClick={() => canEdit && handleAddressSearch(idx)} // 우편번호 클릭 시 검색 팝업
+                          className={`w-full h-full px-2 py-1 text-sm text-center outline-none transition-all
+                            ${canEdit ? 'cursor-pointer hover:bg-blue-50 text-blue-600 font-bold' : 'bg-slate-50 text-slate-500'}`}
+                        />
+                      </td>
                       
                       {/* 주소 (카카오 주소 연동) */}
                       <td className={cellStyle}>
+                          <input 
+                            type="text"
+                            value={item.display_addr || ''}
+                            disabled={!canEdit}
+                            // 주소 정제 로직은 유지하되, 사용자가 직접 수정도 가능하게 처리
+                            onChange={(e) => handleInputChange(idx, 'display_addr', e.target.value)}
+                            className={`${inputStyle} font-bold ${canEdit ? 'text-slate-700' : 'text-slate-500'}`}
+                            placeholder="배송주소"
+                          />
+                        </td>
+                      {/* <td className={cellStyle}>
                         <div 
                           onClick={() => handleAddressSearch(idx)} 
                           className={`px-2 py-1 text-sm font-bold truncate ${canEdit ? 'text-blue-600 cursor-pointer hover:bg-blue-50 rounded' : 'text-slate-500 cursor-default'}`}
                         >
                           {item.display_addr}
                         </div>
-                      </td>
+                      </td> */}
                       <td className={cellStyle}><input id={`detail-addr-${idx}`} type="text" disabled={!canEdit} value={item.detail_addr || ''} onChange={(e) => handleInputChange(idx, 'detail_addr', e.target.value)} className={inputStyle} /></td>
                       
                       {/* 비고 및 기타 정보 */}
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_memo || ''} onChange={(e) => handleInputChange(idx, 'cust_memo', e.target.value)} className={inputStyle} /></td>
                       <td className={cellStyle}><div className={readOnlyStyle}>{item.driver_name}</div></td>
                       <td className={cellStyle}><div className={readOnlyStyle}>{item.driver_hpno}</div></td>
+                      {/* --- 상세품목 버튼 셀 --- */}
+                      <td className={cellStyle}>
+                        <div className="flex justify-center items-center h-full">
+                          <button 
+                            onClick={() => openItemModal(item)}
+                            className="bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-600 px-2 py-1 rounded text-[11px] font-black transition-all border border-slate-200 shadow-sm"
+                          >
+                            품목보기
+                          </button>
+                        </div>
+                      </td>
                       <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_setname}</div></td>
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_inte || ''} onChange={(e) => handleInputChange(idx, 'cust_inte', e.target.value)} className={inputStyle} /></td>
                       <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_devcost || ''} onChange={(e) => handleInputChange(idx, 'cust_devcost', e.target.value)} className={inputStyle} /></td>
@@ -971,6 +1097,132 @@ export default function DeliveryEditTablePage() {
           </div>
         </div>
       </div>
+
+      {/* 상세품목 관리 모달 */}
+      {isItemModalOpen && selectedOrderForItems && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden border border-slate-300">
+            
+            {/* 헤더 */}
+            <div className="bg-slate-900 p-4 flex justify-between items-center shrink-0">
+              <h3 className="text-white font-black flex items-center gap-2 text-lg">
+                <span className="bg-blue-600 px-2 py-0.5 rounded text-sm uppercase">Detail</span>
+                상세 품목 관리
+              </h3>
+              <button onClick={() => setIsItemModalOpen(false)} className="text-slate-400 hover:text-white text-3xl transition-colors">×</button>
+            </div>
+
+            {/* 모달 본문 */}
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+              
+              {/* 상단 주문 요약 정보 카드 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                <div className="space-y-1">
+                  <p className="text-[11px] font-black text-slate-400 uppercase">고객 정보</p>
+                  <p className="text-sm font-bold text-slate-800">
+                    {selectedOrderForItems.cust_name} ({selectedOrderForItems.cust_hpno1 || '연락처 없음'})
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">{selectedOrderForItems.display_addr}</p>
+                </div>
+                <div className="space-y-1 border-x border-slate-100 px-4">
+                  <p className="text-[11px] font-black text-slate-400 uppercase">배송 담당</p>
+                  <p className="text-sm font-bold text-blue-600">
+                    {selectedOrderForItems.driver_name || '-'}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">주문번호: {selectedOrderForItems.cust_ordno}</p>
+                </div>
+                <div className="space-y-1 pl-4">
+                  <p className="text-[11px] font-black text-slate-400 uppercase">일정 정보</p>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-medium text-slate-600">수주일: <b className="text-slate-900">{selectedOrderForItems.cust_orddate || '-'}</b></span>
+                    <span className="text-xs font-medium text-slate-600">배송일: <b className="text-blue-600">{selectedOrderForItems.cust_devdate || '-'}</b></span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 상세 품목 테이블 */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 border-b border-slate-200">
+                      <th className="p-3 text-[11px] font-black text-slate-500 uppercase w-16 text-center">NO</th>
+                      <th className="p-3 text-[11px] font-black text-slate-500 uppercase w-40 text-left">품번 (Code)</th>
+                      <th className="p-3 text-[11px] font-black text-slate-500 uppercase text-left">품명 (Item Name)</th>
+                      <th className="p-3 text-[11px] font-black text-slate-500 uppercase w-24 text-center">수량</th>
+                      <th className="p-3 text-[11px] font-black text-slate-500 uppercase w-24 text-center">삭제</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {isItemLoading ? (
+                      <tr><td colSpan={5} className="p-20 text-center text-slate-400">로딩 중...</td></tr>
+                    ) : itemDetails.length > 0 ? (
+                      itemDetails.map((detail, dIdx) => (
+                        <tr key={dIdx} className="hover:bg-blue-50/30 transition-colors">
+                          <td className="p-3 text-center text-xs font-bold text-slate-400">{dIdx + 1}</td>
+                          {/* 품번 수정 */}
+                          <td className="p-2">
+                            <input 
+                              type="text"
+                              value={detail.cust_itemcode || ''}
+                              onChange={(e) => handleItemChange(dIdx, 'cust_itemcode', e.target.value)}
+                              className="w-full border border-slate-200 rounded px-2 py-1 text-xs font-black focus:border-blue-500 outline-none"
+                            />
+                          </td>
+                          {/* 품명 수정 */}
+                          <td className="p-2">
+                            <input 
+                              type="text"
+                              value={detail.cust_itemname || ''}
+                              onChange={(e) => handleItemChange(dIdx, 'cust_itemname', e.target.value)}
+                              className="w-full border border-slate-200 rounded px-2 py-1 text-xs font-bold focus:border-blue-500 outline-none"
+                            />
+                          </td>
+                          {/* 수량 수정 */}
+                          <td className="p-2 text-center">
+                            <input 
+                              type="number"
+                              value={detail.cust_itemqty || 0}
+                              onChange={(e) => handleItemChange(dIdx, 'cust_itemqty', parseInt(e.target.value))}
+                              className="w-16 border border-slate-200 rounded px-2 py-1 text-xs font-black text-center focus:border-blue-500 outline-none"
+                            />
+                          </td>
+                          {/* 삭제 버튼 추가 */}
+                          <td className="p-2 text-center">
+                            <button 
+                              onClick={() => handleItemDelete(dIdx)}
+                              className="text-red-400 hover:text-red-600 font-bold text-xs p-1"
+                            >
+                              삭제
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr><td colSpan={5} className="p-20 text-center text-slate-400 font-medium">등록된 품목이 없습니다.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 푸터 */}
+            <div className="p-6 bg-white border-t flex justify-end items-center gap-6 shrink-0">
+              <button 
+                onClick={saveItemDetails}
+                className="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-black text-sm hover:bg-blue-700 transition-all shadow-lg active:scale-95 flex items-center gap-2"
+              >
+                저장하기
+              </button>
+              <button 
+                onClick={() => setIsItemModalOpen(false)}
+                className="px-8 py-2.5 bg-slate-900 text-white rounded-xl font-black text-sm hover:bg-blue-600 transition-all shadow-lg active:scale-95"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 상단 이동 버튼 */}
       <div className={`fixed bottom-20 right-8 z-[999] transition-all duration-300 ${showTopBtn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none'}`}>

@@ -12,7 +12,6 @@ export default function SabangnetVerifyPage() {
   const tableContainerRef = useRef<HTMLDivElement>(null);
 	const [tableWidth, setTableWidth] = useState(0);
 	
-
   // 1. 초기 시스템 날짜 설정 (오늘 날짜)
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -220,7 +219,6 @@ export default function SabangnetVerifyPage() {
 										orders.map((item) => {
 											const isMappingFailed = !item.erp_set_name;
 											const infoInputStyle = "w-full px-2 py-1 text-[12px] text-slate-900 bg-white border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-medium";
-											// 이제 raw_data를 거칠 필요 없이 item에서 직접 추출합니다.
 											return (
 												<tr key={item.temp_seq} className="hover:bg-blue-50 transition-colors">
 													<td className="px-4 py-3 font-medium text-slate-900 border-r border-slate-100">

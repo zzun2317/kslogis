@@ -210,41 +210,41 @@ const handleLogout = async () => {
 
         {/* 필터 섹션 */}
         <div className="bg-white p-6 rounded-[2rem] shadow-xl shadow-slate-200/50 border border-white mb-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-black text-slate-400 ml-1 uppercase tracking-widest">Driver</label>
-                <select 
-                  value={selectedDriverEmail} 
-                  onChange={(e) => setSelectedDriverEmail(e.target.value)} 
-                  className="w-full border-none rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 bg-slate-100 outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">전체 기사</option>
-                  {drivers.map((d) => (
-                    <option key={d.driver_email} value={d.driver_email}>{d.driver_name}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] font-black text-slate-400 ml-1 uppercase tracking-widest">Date</label>
-                <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-full border-none rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 bg-slate-100 outline-none focus:ring-2 focus:ring-blue-500" />
-              </div>
-              <div className="flex flex-col gap-2">
-                 <label className="text-[10px] font-black text-slate-400 ml-1 uppercase tracking-widest">Status</label>
-                 <div className="flex bg-slate-100 p-1 rounded-2xl h-[46px] gap-1">
-                   {[
-                    { id: 'all', label: '전체', count: totalCount },
-                    { id: '0', label: '대기', count: pendingCount },
-                    { id: '1', label: '배송중', count: shippingCount },
-                    { id: '2', label: '완료', count: completedCount }
-                   ].map(tab => (
-                    <button key={tab.id} onClick={() => setSelectedStatus(tab.id)} className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-black rounded-xl transition-all ${selectedStatus === tab.id ? 'bg-white text-blue-600 shadow-md' : 'text-slate-400'}`}>
-                      <span>{tab.label}</span>
-                      {tab.count > 0 && <span className="px-1.5 py-0.5 rounded-full text-[9px] bg-blue-100 text-blue-600">{tab.count}</span>}
-                    </button>
-                   ))}
-                 </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 ml-1 uppercase tracking-widest">Driver</label>
+              <select 
+                value={selectedDriverEmail} 
+                onChange={(e) => setSelectedDriverEmail(e.target.value)} 
+                className="w-full border-none rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 bg-slate-100 outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">전체 기사</option>
+                {drivers.map((d) => (
+                  <option key={d.driver_email} value={d.driver_email}>{d.driver_name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 ml-1 uppercase tracking-widest">Date</label>
+              <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-full border-none rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 bg-slate-100 outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-[10px] font-black text-slate-400 ml-1 uppercase tracking-widest">Status</label>
+              <div className="flex bg-slate-100 p-1 rounded-2xl h-[46px] gap-1">
+                {[
+                  { id: 'all', label: '전체', count: totalCount },
+                  { id: '0', label: '대기', count: pendingCount },
+                  { id: '1', label: '배송중', count: shippingCount },
+                  { id: '2', label: '완료', count: completedCount }
+                ].map(tab => (
+                  <button key={tab.id} onClick={() => setSelectedStatus(tab.id)} className={`flex-1 flex items-center justify-center gap-1 text-[11px] font-black rounded-xl transition-all ${selectedStatus === tab.id ? 'bg-white text-blue-600 shadow-md' : 'text-slate-400'}`}>
+                    <span>{tab.label}</span>
+                    {tab.count > 0 && <span className="px-1.5 py-0.5 rounded-full text-[9px] bg-blue-100 text-blue-600">{tab.count}</span>}
+                  </button>
+                ))}
               </div>
             </div>
+          </div>
         </div>
 
         {/* 배송 리스트 */}

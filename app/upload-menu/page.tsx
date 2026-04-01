@@ -6,6 +6,7 @@ import Script from 'next/script';
 import { useAuth } from '@/hook/useAuth';
 import { useAuthStore } from '@/store/useAuthStore';
 import { supabase } from '@/lib/supabase'; 
+import { Calendar as CalendarIcon } from 'lucide-react';
 
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -68,11 +69,11 @@ export default function ExcelUploadPage() {
 
   const REQUIRED_COLUMNS = [
     '출하의뢰번호', '상차(요청)일', '하차(배송)일', 
-    '품번', '요청수량', '주소1', '휴대전화번호'
+    '품번', '요청수량', '우편번호', '주소1', '휴대전화번호'
   ];
 
   const DATE_COLUMNS = ['상차(요청)일', '하차(배송)일', '수주일'];
-  const EDITABLE_COLUMNS = ['상차(요청)일', '하차(배송)일', '주소1', '주소2', '전화번호', '휴대전화번호'];
+  const EDITABLE_COLUMNS = ['상차(요청)일', '하차(배송)일', '우편번호', '주소1', '주소2', '전화번호', '휴대전화번호'];
 
   const errorRowIndices = new Set(errors.map(err => err.row));
   const errorRowsArray = Array.from(new Set(errors.map(err => err.row)));
@@ -640,7 +641,7 @@ export default function ExcelUploadPage() {
       selectedIndices
         .map(idx => previewData[idx]['수주번호'])
         .filter(ordNo => ordNo !== undefined && ordNo !== null && String(ordNo).trim() !== '')
-  );
+    );
     
     // 예외 처리: 체크되지 않은 행들 중, 체크된 수주번호와 동일한 수주번호가 있는지 확인
     const hasIncompleteOrder = previewData.some((row, idx) => {
@@ -769,20 +770,41 @@ export default function ExcelUploadPage() {
                           }
                           const cellError = getCellError(index, header);
                           const isEditable = EDITABLE_COLUMNS.includes(header);
+                          const isZipCode = header === '우편번호';
                           const isAddress1 = header === '주소1';
+                          const isDateColumn = DATE_COLUMNS.includes(header);
                           return (
-                            <td key={header} className={`align-middle border-r border-slate-100 last:border-r-0 transition-colors p-0 ${cellError ? 'bg-red-50 text-red-600 font-bold' : 'text-slate-600'}`}>
+                            <td key={header} className={`relative align-middle border-r border-slate-100 last:border-r-0 transition-colors p-0 ${cellError ? 'bg-red-50 text-red-600 font-bold' : 'text-slate-600'}`}>
                               {isEditable ? (
-                                <input 
-                                  type="text" 
-                                  readOnly={isAddress1}
-                                  value={row[header] || ''} 
-                                  onClick={() => isAddress1 && openPostcode(index)}
-                                  onFocus={(e) => !isAddress1 && e.target.select()} // 선택된 데이터 전체선택
-                                  onChange={(e) => !isAddress1 && handleCellChange(index, header, e.target.value)} 
-                                  className={`w-full h-11 px-4 outline-none focus:ring-2 focus:ring-blue-400 transition-all bg-transparent focus:bg-white ${isAddress1 ? 'cursor-pointer hover:bg-blue-50' : ''}`}  
-                                  placeholder={isAddress1 ? "주소 검색" : ""}
-                                />
+                                <div className="relative flex items-center group w-full h-full">
+                                  <input 
+                                    type={isDateColumn ? "date" : "text"}
+                                    readOnly={isZipCode}
+                                    value={row[header] || ''} 
+                                    onClick={(e) => {
+                                      if (isZipCode) openPostcode(index);
+                                      if (isDateColumn) (e.target as HTMLInputElement).showPicker();
+                                    }}
+                                    onFocus={(e) => !isZipCode && !isDateColumn && e.target.select()} // 선택된 데이터 전체선택
+                                    onChange={(e) => !isZipCode && handleCellChange(index, header, e.target.value)} 
+                                    className={`w-full h-11 px-4 outline-none focus:ring-2 focus:ring-blue-400 transition-all bg-transparent focus:bg-white 
+                                      ${isZipCode ? 'cursor-pointer hover:bg-blue-50' : ''}
+                                      ${isDateColumn ? 'appearance-none' : ''}`}  
+                                    placeholder={isZipCode ? "주소 검색" : ""}
+                                  />
+                                  {/* 날짜 컬럼일 때만 수정 페이지와 동일한 아이콘 표시 */}
+                                  {isDateColumn && (
+                                    <div 
+                                      className="absolute right-3 pointer-events-none text-slate-400 group-hover:text-blue-500 transition-colors"
+                                      onClick={(e) => {
+                                        const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
+                                        input.showPicker();
+                                      }}
+                                    >
+                                      <CalendarIcon className="h-4 w-4" /> {/* 스타일 적용 */}
+                                    </div>
+                                  )}
+                                </div>  
                               ) : (
                                 <div className={`px-4 py-3 truncate`} style={columnWidths[header] ? { width: `${columnWidths[header]}px` } : { maxWidth: '300px' }}>{row[header]?.toString() || ''}</div>
                               )}

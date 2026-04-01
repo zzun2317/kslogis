@@ -49,3 +49,23 @@ body {
 .custom-scroll-style:active::-webkit-scrollbar-thumb {
   background: #64748b;
 }
+
+/* 브라우저 기본 달력 아이콘 숨기기 */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+  z-index: 1; /* 아이콘보다 위에 두어 어디를 눌러도 달력이 뜨게 함 */
+}
+
+/* 파이어폭스 등 다른 브라우저 대응 */
+input[type="date"] {
+  position: relative;
+  appearance: none;
+  -webkit-appearance: none;
+}

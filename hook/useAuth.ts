@@ -8,7 +8,7 @@ export const useAuth = () => {
   const user = useAuthStore((state) => state.user);
   const storedRole = useAuthStore((state) => state.role); // 추가
   const userLevel = Number(user?.user_level || 0);
-
+  //* user_level : superadmin(100), admin(80), user(50), driver(10-30), guest(1) |공통코드테이블ks_common참고
   const router = useRouter();
 
   const ROLE_CODE = {
