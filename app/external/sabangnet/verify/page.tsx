@@ -212,6 +212,7 @@ export default function SabangnetVerifyPage() {
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[100px]">단가</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap text-center min-w-[100px]">창고</th>
 										<th className="px-4 py-4 text-white font-bold whitespace-nowrap min-w-[250px]">비고</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[150px]">수집구분</th>
 									</tr>
 								</thead>
 								<tbody className="divide-y divide-slate-200">
@@ -337,6 +338,11 @@ export default function SabangnetVerifyPage() {
 													<td className="px-4 py-3 text-slate-500">
 														<div className="line-clamp-3 text-[12px] leading-snug">
 															{item.delv_msg1 || '-'}
+														</div>
+													</td>
+													<td className="px-4 py-3 text-slate-500">
+														<div className="line-clamp-3 text-[12px] leading-snug">
+															{item.order_gubun || '-'}
 														</div>
 													</td>
 												</tr>

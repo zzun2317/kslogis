@@ -141,26 +141,88 @@ export default function DeliveryEditTablePage() {
   }, [isLocalManager, userCenterList]);
 
   // --- 공통 코드 및 초기 세팅 로드 ---
-  useEffect(() => {
-    const today = new Date();
-    // setSearchDate(today.toISOString().split('T')[0]);
+  // useEffect(() => {
+  //   const today = new Date();
+  //   // setSearchDate(today.toISOString().split('T')[0]);
     
+  //   const fetchCommonData = async () => {
+  //     // 기사 목록 로드
+  //     const { data: drv } = await supabase.from('ks_driver').select('driver_id, driver_name, driver_email, driver_center, driver_uuid, driver_carno').order('driver_name');
+  //     if (drv) setDrivers(drv);
+  //     // 물류사 코드(004) 로드
+  //     const { data: dc } = await supabase.from('ks_common').select('comm_ccode, comm_text1').eq('comm_mcode', '004').order('comm_ccode');
+  //     if (dc) setDevcenterList(dc);
+  //     // 배송 상태 코드(002) 로드
+  //     const { data: st } = await supabase.from('ks_common').select('comm_ccode, comm_text1, comm_hex').eq('comm_mcode', '002').order('comm_ccode');
+  //     if (st) setStatusList(st);
+  //   };
+  //   fetchCommonData();
+  // }, []);
+
+  useEffect(() => {
     const fetchCommonData = async () => {
-      // 기사 목록 로드
-      const { data: drv } = await supabase.from('ks_driver').select('driver_id, driver_name, driver_email, driver_center, driver_uuid, driver_carno').order('driver_name');
-      if (drv) setDrivers(drv);
-      // 물류사 코드(004) 로드
-      const { data: dc } = await supabase.from('ks_common').select('comm_ccode, comm_text1').eq('comm_mcode', '004').order('comm_ccode');
-      if (dc) setDevcenterList(dc);
-      // 배송 상태 코드(002) 로드
-      const { data: st } = await supabase.from('ks_common').select('comm_ccode, comm_text1, comm_hex').eq('comm_mcode', '002').order('comm_ccode');
-      if (st) setStatusList(st);
+      try {
+        // 1. 기사 목록 로드 (기존 유지 혹은 별도 API가 있다면 변경 가능)
+        const { data: drv } = await supabase
+          .from('ks_driver')
+          .select('driver_id, driver_name, driver_email, driver_center, driver_uuid, driver_carno')
+          .order('driver_name');
+        if (drv) setDrivers(drv);
+
+        // 2. 물류사 코드(004) 로드 - 작성하신 API 호출
+        // 물류사 코드(004) 로드
+        const resCenter = await fetch('/api/common/codes?mcode=004');
+        if (resCenter.ok) {
+          const result = await resCenter.json();
+          // result가 { success: true, data: [...] } 구조이므로 result.data를 세팅
+          if (result.success) {
+            setDevcenterList(result.data); 
+          }
+        }
+
+        // 3. 배송 상태 코드(002) 로드 - 작성하신 API 호출
+        const resStatus = await fetch('/api/common/codes?mcode=002');
+        if (resStatus.ok) {
+          const result = await resStatus.json();
+          if (result.success) {
+            setStatusList(result.data);
+          }
+        }
+      } catch (error) {
+        console.error('공통 코드 로드 실패:', error);
+      }
     };
+
     fetchCommonData();
   }, []);
 
   const scrollToTop = () => {
     if (mainScrollRef.current) mainScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // 날짜 설정 핸들러 (오늘, 어제, 1개월)
+  const setDateRange = (type: 'today' | 'yesterday' | 'month') => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    
+    let from = todayStr;
+    let to = todayStr;
+
+    if (type === 'yesterday') {
+      const yesterday = new Date();
+      yesterday.setDate(now.getDate() - 1);
+      from = yesterday.toISOString().split('T')[0];
+    } else if (type === 'month') {
+      const lastMonth = new Date();
+      lastMonth.setMonth(now.getMonth() - 1);
+      from = lastMonth.toISOString().split('T')[0];
+    }
+
+    setStartDate(from);
+    setEndDate(to);
+    
+    // 날짜 변경 후 즉시 조회를 원하시면 fetch 함수를 호출하세요.
+    // 예: fetchDeliveryData();
   };
 
   // --- 배송 데이터 조회 (RPC 호출) ---
@@ -809,6 +871,30 @@ export default function DeliveryEditTablePage() {
                   </div>
                 </div>
               )}
+            </div>
+            {/* ⚡ 날짜 선택 버튼 그룹 */}
+            <div className="flex gap-1 bg-slate-200 p-1 rounded-lg">
+              <button 
+                type="button"
+                onClick={() => setDateRange('today')}
+                className="px-3 h-[32px] text-[11px] font-black bg-white text-slate-700 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+              >
+                오늘
+              </button>
+              <button 
+                type="button"
+                onClick={() => setDateRange('yesterday')}
+                className="px-3 h-[32px] text-[11px] font-black bg-white text-slate-700 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+              >
+                어제
+              </button>
+              <button 
+                type="button"
+                onClick={() => setDateRange('month')}
+                className="px-3 h-[32px] text-[11px] font-black bg-white text-slate-700 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+              >
+                1개월
+              </button>
             </div>
 
             {/* 고객명 필터 */}

@@ -79,43 +79,92 @@ export default function DeliveryAdminPage() {
 
   // 배송상태 조회
   useEffect(() => {
-  const fetchStatusCodes = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('ks_common')
-        .select('comm_ccode, comm_text1, comm_hex')
-        .eq('comm_mcode', '002')
-        .eq('comm_use', true) // 사용 중인 것만
-        .order('comm_sort', { ascending: true }); // 순서 정렬
-
-      if (error) throw error;
-      if (data) setStatusCodes(data);
-    } catch (err) {
-      console.error('상태 코드 로드 실패:', err);
-    }
-  };
-  fetchStatusCodes();
-  }, []);
-
-  // 물류센터 조회
-  useEffect(() => {
-    const fetchCenterCodes = async () => {
+    const fetchCodes = async () => {
       try {
-        const { data, error } = await supabase
-          .from('ks_common')
-          .select('comm_ccode, comm_text1')
-          .eq('comm_mcode', '004')
-          .eq('comm_use', true) // 사용 중인 센터만
-          .order('comm_sort', { ascending: true }); // 정렬 순서 적용
+        // 1. 배송상태 조회 (mcode: 002)
+        const resStatus = await fetch('/api/common/codes?mcode=002');
+        if (resStatus.ok) {
+          const result = await resStatus.json();
+          if (result.success) setStatusCodes(result.data);
+        }
 
-        if (error) throw error;
-        if (data) setCenterCodes(data);
+        // 2. 물류센터 조회 (mcode: 004)
+        const resCenter = await fetch('/api/common/codes?mcode=004');
+        if (resCenter.ok) {
+          const result = await resCenter.json();
+          if (result.success) setCenterCodes(result.data);
+        }
       } catch (err) {
-        console.error('센터 코드 로드 실패:', err);
+        console.error('코드 로드 중 오류 발생:', err);
       }
     };
-    fetchCenterCodes();
+
+    fetchCodes();
   }, []);
+  
+  // useEffect(() => {
+  //   const fetchStatusCodes = async () => {
+  //     try {
+  //       const { data, error } = await supabase
+  //         .from('ks_common')
+  //         .select('comm_ccode, comm_text1, comm_hex')
+  //         .eq('comm_mcode', '002')
+  //         .eq('comm_use', true) // 사용 중인 것만
+  //         .order('comm_sort', { ascending: true }); // 순서 정렬
+
+  //       if (error) throw error;
+  //       if (data) setStatusCodes(data);
+  //     } catch (err) {
+  //       console.error('상태 코드 로드 실패:', err);
+  //     }
+  //   };
+  //   fetchStatusCodes();
+  // }, []);
+
+  // // 물류센터 조회
+  // useEffect(() => {
+  //   const fetchCenterCodes = async () => {
+  //     try {
+  //       const { data, error } = await supabase
+  //         .from('ks_common')
+  //         .select('comm_ccode, comm_text1')
+  //         .eq('comm_mcode', '004')
+  //         .eq('comm_use', true) // 사용 중인 센터만
+  //         .order('comm_sort', { ascending: true }); // 정렬 순서 적용
+
+  //       if (error) throw error;
+  //       if (data) setCenterCodes(data);
+  //     } catch (err) {
+  //       console.error('센터 코드 로드 실패:', err);
+  //     }
+  //   };
+  //   fetchCenterCodes();
+  // }, []);
+
+  // 날짜 설정 핸들러 추가
+  const setDateRange = (type: 'today' | 'yesterday' | 'month') => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    
+    let from = todayStr;
+    let to = todayStr;
+
+    if (type === 'yesterday') {
+      const yesterday = new Date();
+      yesterday.setDate(now.getDate() - 1);
+      from = yesterday.toISOString().split('T')[0];
+    } else if (type === 'month') {
+      const lastMonth = new Date();
+      lastMonth.setMonth(now.getMonth() - 1);
+      from = lastMonth.toISOString().split('T')[0];
+    }
+
+    setStartDate(from);
+    setEndDate(to);
+    
+    // 날짜 변경 후 즉시 조회를 원하시면 아래 주석을 해제하세요.
+    // fetchDeliveryData(); 
+  };
 
   // --- [핵심] 권한별 물류사 필터링 로직 ---
   const filteredDevcenterList = useMemo(() => {
@@ -421,6 +470,28 @@ export default function DeliveryAdminPage() {
                   )}
                 </div>
               </div>
+              
+                {/* ⚡ 새롭게 추가되는 빠른 날짜 선택 버튼 */}
+                <div className="flex gap-1 bg-slate-200 p-1 rounded-lg">
+                  <button 
+                    onClick={() => setDateRange('today')}
+                    className="px-3 h-[32px] text-[11px] font-black bg-white text-slate-700 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                  >
+                    오늘
+                  </button>
+                  <button 
+                    onClick={() => setDateRange('yesterday')}
+                    className="px-3 h-[32px] text-[11px] font-black bg-white text-slate-700 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                  >
+                    어제
+                  </button>
+                  <button 
+                    onClick={() => setDateRange('month')}
+                    className="px-3 h-[32px] text-[11px] font-black bg-white text-slate-700 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                  >
+                    1개월
+                  </button>
+                </div>              
 
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-black text-slate-800 ml-1">고객명</label>

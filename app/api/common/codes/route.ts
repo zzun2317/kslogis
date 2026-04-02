@@ -19,6 +19,7 @@ export async function GET(request: Request) {
     .from('ks_common')
     .select('*')
     .eq('comm_mcode', mcode)
+    .eq('comm_use', true)
     .order('comm_sort', { ascending: true });
 
   if (error) {

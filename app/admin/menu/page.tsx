@@ -25,34 +25,65 @@ export default function MenuAdminPage() {
   const [categories, setCategories] = useState<any[]>([]);
 
     const fetchInitialData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data: menuData } = await supabase.from('ks_menu').select('*').order('menu_sort', { ascending: true });
-      const { data: roleData } = await supabase.from('ks_common').select('comm_ccode, comm_text1').eq('comm_mcode', '001').eq('comm_use', true).order('comm_sort');
-      const { data: userData } = await supabase.from('ks_users').select('user_uuid, user_name, user_email');
-      const { data: catData } = await supabase.from('ks_common').select('comm_ccode, comm_text1').eq('comm_mcode', '008').eq('comm_use', true).order('comm_sort');
+      setLoading(true);
+      try {
+        const { data: menuData } = await supabase.from('ks_menu').select('*').order('menu_sort', { ascending: true });
+        const { data: userData } = await supabase.from('ks_users').select('user_uuid, user_name, user_email');
+        // const { data: roleData } = await supabase.from('ks_common').select('comm_ccode, comm_text1').eq('comm_mcode', '001').eq('comm_use', true).order('comm_sort');
+        // const { data: catData } = await supabase.from('ks_common').select('comm_ccode, comm_text1').eq('comm_mcode', '008').eq('comm_use', true).order('comm_sort');
+        // 권한 코드(001) 로드
+        const resRole = await fetch('/api/common/codes?mcode=001');
+        if (resRole.ok) {
+          const result = await resRole.json();
+          if (result.success) {
+            // 기존처럼 '전체 공통 메뉴'를 상단에 추가
+            setRoles([
+              { comm_ccode: 'ALL', comm_text1: '★ 전체 공통 메뉴' }, 
+              ...result.data
+            ]);
+          }
+        }
 
-      if (menuData) {
+        // 카테고리 코드(008) 로드
+        const resCat = await fetch('/api/common/codes?mcode=008');
+        if (resCat.ok) {
+          const result = await resCat.json();
+          if (result.success) {
+            setCategories(result.data); 
+          }
+        }
+        // 4. 메뉴 데이터 세팅
+        if (menuData) {
           setMenus(menuData);
           setNewMenu(prev => ({ ...prev, menu_sort: menuData.length + 1 }));
+        }
+
+        // 5. 유저 데이터 세팅
+        if (userData) {
+          setAllUsers(userData);
+        }
+
+        // if (menuData) {
+        //     setMenus(menuData);
+        //     setNewMenu(prev => ({ ...prev, menu_sort: menuData.length + 1 }));
+        // }
+        // if (catData) {
+        //     setCategories(catData);
+        // }
+        // if (roleData) {
+        //     setRoles([
+        //       { comm_ccode: 'ALL', comm_text1: '★ 전체 공통 메뉴' }, 
+        //       ...roleData
+        //     ]);
+        // }
+        if (userData) setAllUsers(userData);
+      } catch (error) {
+        console.error("초기 데이터 로드 에러:", error);
+      } finally {
+        // 🚀 이 부분이 추가되어야 '처리 중' 상태가 풀립니다.
+        setLoading(false);
       }
-      if (catData) {
-          setCategories(catData);
-      }
-      if (roleData) {
-          setRoles([
-            { comm_ccode: 'ALL', comm_text1: '★ 전체 공통 메뉴' }, 
-            ...roleData
-          ]);
-      }
-      if (userData) setAllUsers(userData);
-    } catch (error) {
-      console.error("초기 데이터 로드 에러:", error);
-    } finally {
-      // 🚀 이 부분이 추가되어야 '처리 중' 상태가 풀립니다.
-      setLoading(false);
-    }
-  }, []);
+    }, []);
 
   // 인증 체크 로직 추가
   useEffect(() => {

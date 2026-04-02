@@ -60,30 +60,51 @@ export default function SignUpPage() {
     const fetchCommonCodes = async () => {
       try {
         // 1. 물류사 리스트 조회 (004)
-        const { data: centers } = await supabase
-          .from('ks_common')
-          .select('comm_ccode, comm_text1')
-          .eq('comm_mcode', '004')
-          .order('comm_sort', { ascending: true });
-
-        if (centers && centers.length > 0) {
-          setCenterList(centers);
-          setSelectedCenter(centers[0].comm_ccode);
+        const resCenter = await fetch('/api/common/codes?mcode=004');
+        if (resCenter.ok) {
+          const result = await resCenter.json();
+          if (result.success && result.data.length > 0) {
+            setCenterList(result.data);
+            setSelectedCenter(result.data[0].comm_ccode); // 첫 번째 센터 기본 선택
+          }
         }
+        // const { data: centers } = await supabase
+        //   .from('ks_common')
+        //   .select('comm_ccode, comm_text1')
+        //   .eq('comm_mcode', '004')
+        //   .order('comm_sort', { ascending: true });
+
+        // if (centers && centers.length > 0) {
+        //   setCenterList(centers);
+        //   setSelectedCenter(centers[0].comm_ccode);
+        // }
 
         // 2. 이메일 도메인 리스트 조회 (003)
-        const { data: domains } = await supabase
-          .from('ks_common')
-          .select('comm_ccode, comm_text1')
-          .eq('comm_mcode', '003')
-          .order('comm_sort', { ascending: true });
-
-        if (domains && domains.length > 0) {
-          // 마지막에 직접입력 추가 (ccode는 식별용으로 'custom' 부여)
-          const finalDomains = [...domains, { comm_ccode: 'custom', comm_text1: '직접 입력' }];
-          setDomainList(finalDomains);
-          setEmailDomain(domains[0].comm_text1); // 첫 번째 도메인 기본 선택
+        const resDomain = await fetch('/api/common/codes?mcode=003');
+        if (resDomain.ok) {
+          const result = await resDomain.json();
+          if (result.success && result.data.length > 0) {
+            // 마지막에 '직접 입력' 항목 추가
+            const finalDomains = [
+              ...result.data, 
+              { comm_ccode: 'custom', comm_text1: '직접 입력' }
+            ];
+            setDomainList(finalDomains);
+            setEmailDomain(result.data[0].comm_text1); // 첫 번째 도메인 기본 선택
+          }
         }
+        // const { data: domains } = await supabase
+        //   .from('ks_common')
+        //   .select('comm_ccode, comm_text1')
+        //   .eq('comm_mcode', '003')
+        //   .order('comm_sort', { ascending: true });
+
+        // if (domains && domains.length > 0) {
+        //   // 마지막에 직접입력 추가 (ccode는 식별용으로 'custom' 부여)
+        //   const finalDomains = [...domains, { comm_ccode: 'custom', comm_text1: '직접 입력' }];
+        //   setDomainList(finalDomains);
+        //   setEmailDomain(domains[0].comm_text1); // 첫 번째 도메인 기본 선택
+        // }
       } catch (err) {
         console.error('코드 로드 실패:', err);
       }
