@@ -30,6 +30,34 @@ export default function DeliveryEditTablePage() {
   }
 
   // --- 조회 조건 상태 관리 ---
+  const DEFAULT_EDIT_COLUMNS = [
+    { id: 'cust_devstatus', label: '배송상태', visible: true },
+    { id: 'cust_gubun', label: '배송구분', visible: true },
+    { id: 'cust_ordno', label: '주문번호', visible: true },
+    { id: 'cust_devcenter', label: '물류사', visible: true },
+    { id: 'cust_orddate', label: '수주일자', visible: true },
+    { id: 'cust_devdate', label: '배송요청일', visible: true },
+    { id: 'cust_reqdate', label: '상차요청일', visible: true },
+    { id: 'cust_devdelaydate', label: '연기일자', visible: true },
+    { id: 'cust_name', label: '고객명', visible: true },
+    { id: 'cust_hpno1', label: '연락처1', visible: true },
+    { id: 'cust_hpno2', label: '연락처2', visible: true },
+    { id: 'cust_postno', label: '우편번호', visible: true },
+    { id: 'display_addr', label: '배송주소', visible: true },
+    { id: 'detail_addr', label: '상세주소', visible: true },
+    { id: 'cust_memo', label: '고객요청', visible: true },
+    { id: 'driver_name', label: '배송기사', visible: true },
+    { id: 'driver_hpno', label: '기사연락처', visible: true },
+    { id: 'items_btn', label: '상세품목', visible: true },
+    { id: 'cust_setname', label: '세트정보', visible: true },
+    { id: 'cust_inte', label: '시공정보', visible: true },
+    { id: 'cust_devcost', label: '배송비고', visible: true },
+    { id: 'cust_devmemo', label: '배송메모', visible: true },
+    { id: 'area_driver_name', label: '온라인 배송기사', visible: true },
+    { id: 'user_name', label: '담당', visible: true },
+  ];
+  const [columnSettings, setColumnSettings] = useState<any[]>([]);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   // const [searchDate, setSearchDate] = useState(''); 
   const today = new Date().toISOString().split('T')[0];
   const [startDate, setStartDate] = useState(today); // 시작일
@@ -96,10 +124,10 @@ export default function DeliveryEditTablePage() {
 
   // --- 컬럼 너비 조절 상태 ---
   const [columnWidths, setColumnWidths] = useState<{ [key: string]: number }>({
-    no: 50, save: 60, chk: 40, devstatus_name: 110, cust_gubun: 90, ordno: 130, devcenter: 150, cust_orddate: 120,
-    devdate: 110, reqdate: 110, cust_devdelaydate: 130, name: 100, hp1: 150, hp2: 150, cust_postno: 100, address: 300, 
-    detail_addr: 200, cust_memo: 180, driver_name: 100, driver_hpno: 150, tems_btn: 100,
-    cust_setname: 300, cust_inte: 150, cost: 120, memo: 150, user_name: 100, addr_oarea: 100, area_driver_id: 120, area_driver_uuid: 200, area_driver_name: 120
+    no: 50, save: 60, chk: 40, cust_devstatus: 110, cust_gubun: 90, cust_ordno: 130, cust_devcenter: 150, cust_orddate: 120,
+    cust_devdate: 110, cust_reqdate: 110, cust_devdelaydate: 130, cust_name: 100, cust_hpno1: 150, cust_hpno2: 150, cust_postno: 100, display_addr: 300, 
+    detail_addr: 200, cust_memo: 180, driver_name: 100, driver_hpno: 150, items_btn: 80,
+    cust_setname: 300, cust_inte: 150, cust_devcost: 120, cust_devmemo: 150, user_name: 100, addr_oarea: 100, area_driver_id: 120, area_driver_uuid: 200, area_driver_name: 120
   });
 
   const stickyLeft = useMemo(() => ({
@@ -195,6 +223,34 @@ export default function DeliveryEditTablePage() {
 
     fetchCommonData();
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+  
+    const fetchUserConfig = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_menu_config')
+          .select('column_settings')
+          .eq('user_id', user.id)
+          .eq('menu_id', 'DELIVERY_EDIT_DETAIL') // 배송조회 메뉴 ID
+          .single();
+  
+        if (data?.column_settings) {
+          // DB에 저장된 설정이 있으면 적용
+          setColumnSettings(data.column_settings);
+        } else {
+          // 저장된 설정이 없으면 기본값 적용
+          setColumnSettings(DEFAULT_EDIT_COLUMNS);
+        }
+      } catch (err) {
+        console.error('설정 로드 실패:', err);
+        setColumnSettings(DEFAULT_EDIT_COLUMNS);
+      }
+    };
+  
+    fetchUserConfig();
+  }, [user?.id]);
 
   const scrollToTop = () => {
     if (mainScrollRef.current) mainScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
@@ -308,13 +364,62 @@ export default function DeliveryEditTablePage() {
   // console.log('3. userCenterList 배열:', userCenterList);
   // console.log('4. userCenterList 길이:', userCenterList?.length);
 
-  if (user?.user_role && userCenterList && userCenterList.length > 0) {
-    console.log("✅ 모든 정보 확인됨! fetchDeliveryData 실행");
-    fetchDeliveryData();
-  } else {
-    console.log("⏳ 조건 미충족: 아직 기다리는 중...");
-  }
-}, [user, userCenterList, reqDate, gubun, searchDevcenter, searchStatus, userCenterList]);
+    if (user?.user_role && userCenterList && userCenterList.length > 0) {
+      console.log("✅ 모든 정보 확인됨! fetchDeliveryData 실행");
+      fetchDeliveryData();
+    } else {
+      console.log("⏳ 조건 미충족: 아직 기다리는 중...");
+    }
+  }, [user, userCenterList, reqDate, gubun, searchDevcenter, searchStatus, userCenterList]);
+
+  // 1. 컬럼 보이기/숨기기 토글
+  const toggleColumnVisible = (id: string) => {
+    setColumnSettings(prev => prev.map(col => 
+      col.id === id ? { ...col, visible: !col.visible } : col
+    ));
+  };
+
+  // 2. 컬럼 순서 이동 (Up/Down)
+  const moveColumn = (index: number, direction: 'up' | 'down') => {
+    const newSettings = [...columnSettings];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+
+    if (targetIndex < 0 || targetIndex >= newSettings.length) return;
+
+    // 위치 바꿈
+    [newSettings[index], newSettings[targetIndex]] = [newSettings[targetIndex], newSettings[index]];
+    setColumnSettings(newSettings);
+  };
+
+  // 3. 설정 초기화 (기본값으로 복원)
+  const resetColumnSettings = () => {
+    if (confirm("모든 항목 설정을 처음 상태로 되돌리시겠습니까?")) {
+      setColumnSettings(DEFAULT_EDIT_COLUMNS);
+    }
+  };
+
+  // 4. 설정 저장 (DB Upsert)
+  const saveColumnSettings = async (newSettings: any[]) => {
+    try {
+      const { error } = await supabase
+        .from('user_menu_config')
+        .upsert({
+          user_id: user.id,
+          menu_id: 'DELIVERY_EDIT_DETAIL', // 수정 화면 전용 ID
+          column_settings: newSettings,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id, menu_id' });
+
+      if (error) throw error;
+
+      setColumnSettings(newSettings);
+      setIsConfigModalOpen(false); // 저장 후 모달 닫기
+      alert('설정이 성공적으로 저장되었습니다.');
+    } catch (err) {
+      console.error('Save config error:', err);
+      alert('설정 저장 중 오류가 발생했습니다.');
+    }
+  };
 
   // --- 기사 일괄 변경 로직 ---
   const handleBulkDriverUpdate = async () => {
@@ -970,6 +1075,18 @@ export default function DeliveryEditTablePage() {
                 </button>
               )}
 
+              {/* 항목 설정 버튼 */}
+              <button
+                onClick={() => setIsConfigModalOpen(true)}
+                className="flex items-center gap-1 px-4 h-[40px] bg-white border border-slate-300 text-slate-700 rounded-xl font-black text-sm hover:bg-slate-50 transition-all shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                항목설정
+              </button>
+
               {/* 조회 버튼 */}
               <button onClick={fetchDeliveryData} disabled={loading} className="bg-slate-900 text-white px-5 py-2 rounded-xl font-black text-xs hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg">
                 {loading ? '조회 중...' : '조회하기'}
@@ -1024,9 +1141,14 @@ export default function DeliveryEditTablePage() {
           >
             <table className="border-collapse border-spacing-0" style={{ tableLayout: 'fixed', width: `${totalTableWidth}px` }}>
               <thead>
-                <tr className="bg-slate-900">
-                  <th className={`${headerStyle} sticky left-0 z-50`} style={{ width: columnWidths.no, left: stickyLeft.no }}>No <ResizeHandle field="no" /></th>
-                  <th className={`${headerStyle} sticky z-50`} style={{ width: columnWidths.save, left: stickyLeft.save }}>저장 <ResizeHandle field="save" /></th>
+                <tr className="bg-slate-900 border-b border-slate-800">
+                  {/* A. 고정 컬럼 영역 (설정값과 관계없이 항상 좌측에 고정) */}
+                  <th className={`${headerStyle} sticky left-0 z-50`} style={{ width: columnWidths.no, left: stickyLeft.no }}>
+                    No <ResizeHandle field="no" />
+                  </th>
+                  <th className={`${headerStyle} sticky z-50`} style={{ width: columnWidths.save, left: stickyLeft.save }}>
+                    저장 <ResizeHandle field="save" />
+                  </th>
                   <th className={`${headerStyle} sticky z-50`} style={{ width: columnWidths.chk, left: stickyLeft.chk }}>
                     <input 
                       type="checkbox" 
@@ -1036,38 +1158,40 @@ export default function DeliveryEditTablePage() {
                     />
                     <ResizeHandle field="chk" />
                   </th>
-                  <th className={editableHeaderStyle('devstatus_name')} style={{ width: columnWidths.devstatus_name }}>배송상태 <ResizeHandle field="devstatus_name" /></th>
-                  <th className={headerStyle} style={{ width: columnWidths.cust_gubun }}>배송구분 <ResizeHandle field="cust_gubun" /></th>
-                  <th className={headerStyle} style={{ width: columnWidths.ordno }}>주문번호 <ResizeHandle field="ordno" /></th>
-                  <th className={editableHeaderStyle('devcenter')} style={{ width: columnWidths.devcenter }}>물류사 <ResizeHandle field="devcenter" /></th>
-                  <th className={headerStyle} style={{ width: columnWidths.cust_orddate }}>수주일자 <ResizeHandle field="cust_orddate" /></th>
-                  <th className={editableHeaderStyle('devdate')} style={{ width: columnWidths.devdate }}>배송요청일 <ResizeHandle field="devdate" /></th>
-                  <th className={editableHeaderStyle('reqdate')} style={{ width: columnWidths.reqdate }}>상차요청일 <ResizeHandle field="reqdate" /></th>
-                  <th className={headerStyle} style={{ width: columnWidths.cust_devdelaydate }}>연기일자 <ResizeHandle field="cust_devdelaydate" /></th>
-                  <th className={editableHeaderStyle('name')} style={{ width: columnWidths.name }}>고객명 <ResizeHandle field="name" /></th>
-                  <th className={editableHeaderStyle('hp1')} style={{ width: columnWidths.hp1 }}>연락처1 <ResizeHandle field="hp1" /></th>
-                  <th className={editableHeaderStyle('hp2')} style={{ width: columnWidths.hp2 }}>연락처2 <ResizeHandle field="hp2" /></th>
-                  <th className={headerStyle} style={{ width: columnWidths.cust_postno }}>우편번호 <ResizeHandle field="cust_postno" /></th>
-                  <th className={editableHeaderStyle('address')} style={{ width: columnWidths.address }}>배송주소 <ResizeHandle field="address" /></th>
-                  <th className={editableHeaderStyle('detail_addr')} style={{ width: columnWidths.detail_addr }}>상세주소 <ResizeHandle field="detail_addr" /></th>
-                  <th className={editableHeaderStyle('cust_memo')} style={{ width: columnWidths.cust_memo }}>고객요청 <ResizeHandle field="cust_memo" /></th>
-                  <th className={headerStyle} style={{ width: columnWidths.driver_name }}>배송기사 <ResizeHandle field="driver_name" /></th>
-                  <th className={headerStyle} style={{ width: columnWidths.driver_hpno }}>기사연락처 <ResizeHandle field="driver_hpno" /></th>
-                  <th className={headerStyle} style={{ width: columnWidths.items_btn }}>상세품목 <ResizeHandle field="items_btn" /></th>
-                  <th className={editableHeaderStyle('cust_setname')} style={{ width: columnWidths.cust_setname }}>세트정보 <ResizeHandle field="cust_setname" /></th>
-                  <th className={editableHeaderStyle('cust_inte')} style={{ width: columnWidths.cust_inte }}>시공정보 <ResizeHandle field="cust_inte" /></th>
-                  <th className={editableHeaderStyle('cost')} style={{ width: columnWidths.cost }}>배송비고 <ResizeHandle field="cost" /></th>
-                  <th className={editableHeaderStyle('memo')} style={{ width: columnWidths.memo }}>배송메모 <ResizeHandle field="memo" /></th>
-                  <th className={headerStyle} style={{ width: columnWidths.area_driver_name }}>온라인 배송기사 <ResizeHandle field="area_driver_name" /></th>
-                  <th className={headerStyle} style={{ width: columnWidths.user_name }}>담당 <ResizeHandle field="user_name" /></th>
-                  {/* 1. SuperAdmin 전용 컬럼들 */}
-                  {user?.user_role === '001001' && (
-                    <>
-                      <th className={headerStyle} style={{ width: columnWidths.addr_oarea }}>온라인배송지역 <ResizeHandle field="addr_oarea" /></th>
-                      <th className={headerStyle} style={{ width: columnWidths.area_driver_id }}>온라인배송ID <ResizeHandle field="area_driver_id" /></th>
-                      <th className={headerStyle} style={{ width: columnWidths.area_driver_uuid }}>온라인배송UUID <ResizeHandle field="area_driver_uuid" /></th>
-                    </>
-                  )}
+
+                  {/* B. 동적 컬럼 영역 (columnSettings 순서와 visible 여부에 따라 렌더링) */}
+                  {columnSettings
+                    .filter(col => col.visible)
+                    .map((col) => {
+                      // SuperAdmin 전용 컬럼 예외 처리 (설정에 있더라도 권한 없으면 필터링)
+                      const superAdminOnlyIds = ['addr_oarea', 'area_driver_id', 'area_driver_uuid'];
+                      if (superAdminOnlyIds.includes(col.id) && user?.user_role !== '001001') {
+                        return null;
+                      }
+
+                      // 특정 ID들은 editableHeaderStyle을 적용해야 함
+                      const editableFields = [
+                        'cust_devstatus', 'cust_devcenter', 'cust_devdate', 'cust_reqdate', 
+                        'cust_name', 'cust_hpno1', 'cust_hpno2', 'display_addr', 
+                        'detail_addr', 'cust_memo', 'cust_setname', 'cust_inte', 
+                        'cust_devcost', 'cust_devmemo'
+                      ];
+
+                      const isEditableField = editableFields.includes(col.id);
+                      const currentStyle = isEditableField ? editableHeaderStyle(col.id) : headerStyle;
+                      const currentWidth = columnWidths[col.id] || 150;
+
+                      return (
+                        <th 
+                          key={col.id} 
+                          className={currentStyle} 
+                          style={{ width: currentWidth, minWidth: currentWidth }}
+                        >
+                          {col.label}
+                          <ResizeHandle field={col.id} />
+                        </th>
+                      );
+                    })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
@@ -1075,147 +1199,108 @@ export default function DeliveryEditTablePage() {
                   const isDirty = checkIfDirty(idx);
                   const isSelected = selectedRows.includes(item.cust_ordno);
                   const stickyCellBg = isSelected ? 'bg-blue-50' : isDirty ? 'bg-blue-100' : 'bg-white';
-                  
+                  const editable = isRowEditable(item); // 행 수정 가능 여부
+
                   return (
                     <tr key={item.cust_ordno} className={`transition-colors hover:bg-slate-50 ${isSelected ? 'bg-blue-50' : isDirty ? 'bg-blue-50/50' : 'bg-white'}`}>
-                      {/* 고정 열 1: 번호 */}
+                      
+                      {/* 1. 좌측 고정 영역 (No, 저장, 체크박스) */}
                       <td className={`sticky left-0 z-20 p-2 text-center border-r border-slate-100 ${stickyCellBg}`} style={{ left: stickyLeft.no }}>
                         <div className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-black ${isDirty ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>{idx + 1}</div>
                       </td>
-                      
-                      {/* 고정 열 2: 저장 버튼 (권한 체크) */}
                       <td className={`sticky z-20 p-0 text-center align-middle border-r border-slate-100 ${stickyCellBg}`} style={{ left: stickyLeft.save }}>
                         <button 
                           onClick={() => handleSaveRow(item, idx)} 
-                          disabled={!isRowEditable(item)}
+                          disabled={!editable}
                           className={`p-1.5 transition-all ${!canEdit ? 'opacity-20 cursor-default' : isDirty ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-slate-300 hover:text-blue-600'}`}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
                         </button>
                       </td>
-
-                      {/* 고정 열 3: 체크박스 */}
                       <td className={`sticky z-20 p-0 text-center align-middle border-r border-slate-100 ${stickyCellBg}`} style={{ left: stickyLeft.chk }}>
                         <input type="checkbox" className="w-4 h-4 accent-blue-600 cursor-pointer" checked={isSelected} onChange={() => setSelectedRows(prev => prev.includes(item.cust_ordno) ? prev.filter(id => id !== item.cust_ordno) : [...prev, item.cust_ordno])} />
                       </td>
 
-                      {/* 배송상태 */}
-                      <td className={cellStyle}>
-                        <select 
-                          disabled={!canEdit || isLocalManager}
-                          value={item.cust_devstatus || ''} 
-                          onChange={(e) => handleInputChange(idx, 'cust_devstatus', e.target.value)} 
-                          className={`${inputStyle} text-center font-black ${!canEdit ? 'appearance-none' : ''}`} 
-                          style={{ color: item.devstatus_color || '#64748b' }}
-                        >
-                          {statusList.map((st) => (<option key={st.comm_ccode} value={st.comm_ccode} style={{ color: st.comm_hex }}>{st.comm_text1}</option>))}
-                        </select>
-                      </td>
+                      {/* 2. 동적 컬럼 영역 (각개전투 시작) */}
+                      {columnSettings
+                        .filter(col => col.visible)
+                        .map((col) => {
+                          // SuperAdmin 전용 필터링
+                          if (['addr_oarea', 'area_driver_id', 'area_driver_uuid'].includes(col.id) && user?.user_role !== '001001') return null;
 
-                      <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_gubun}</div></td>
-                      <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_ordno}</div></td>
+                          return (
+                            <td key={col.id} className={cellStyle}>
+                              {(() => {
+                                switch (col.id) {
+                                  case 'devstatus_name': // 배송상태 (Select)
+                                    return (
+                                      <select 
+                                        disabled={!canEdit || isLocalManager || !editable}
+                                        value={item.cust_devstatus || ''} 
+                                        onChange={(e) => handleInputChange(idx, 'cust_devstatus', e.target.value)} 
+                                        className={`${inputStyle} text-center font-black ${!canEdit ? 'appearance-none' : ''}`} 
+                                        style={{ color: item.devstatus_color || '#64748b' }}
+                                      >
+                                        {statusList.map((st) => (<option key={st.comm_ccode} value={st.comm_ccode} style={{ color: st.comm_hex }}>{st.comm_text1}</option>))}
+                                      </select>
+                                    );
 
-                      {/* 물류사 선택 */}
-                      <td className={cellStyle}>
-                        <select 
-                          disabled={!canEdit || isLocalManager}
-                          value={item.cust_devcenter || ''} 
-                          onChange={(e) => handleInputChange(idx, 'cust_devcenter', e.target.value)} 
-                          className={`${inputStyle} text-center ${!canEdit ? 'appearance-none' : ''}`}
-                        >
-                          {devcenterList.map((dc) => (<option key={dc.comm_ccode} value={dc.comm_ccode}>{dc.comm_text1}</option>))}
-                        </select>
-                      </td>
-                      
-                      {/* 수주일자 (조회전용) */}
-                      <td className={cellStyle}>
-                        <div className={readOnlyStyle} style={{ color: item.devstatus_color || '#64748b', fontWeight: 'bold' }}>
-                          {item.cust_orddate || ''}
-                        </div>
-                      </td>
+                                  case 'cust_devcenter': // 물류사 (Select)
+                                    return (
+                                      <select 
+                                        disabled={!canEdit || isLocalManager || !editable}
+                                        value={item.cust_devcenter || ''} 
+                                        onChange={(e) => handleInputChange(idx, 'cust_devcenter', e.target.value)} 
+                                        className={`${inputStyle} text-center ${!canEdit ? 'appearance-none' : ''}`}
+                                      >
+                                        {devcenterList.map((dc) => (<option key={dc.comm_ccode} value={dc.comm_ccode}>{dc.comm_text1}</option>))}
+                                      </select>
+                                    );
 
-                      {/* 날짜 입력들 */}
-                      <td className={cellStyle}><input type="date" disabled={!canEdit || isLocalManager} value={item.cust_devdate || ''} onChange={(e) => handleInputChange(idx, 'cust_devdate', e.target.value)} className={dateInputStyle} /></td>
-                      <td className={cellStyle}><input type="date" disabled={!canEdit || isLocalManager} value={item.cust_reqdate || ''} onChange={(e) => handleInputChange(idx, 'cust_reqdate', e.target.value)} className={dateInputStyle} /></td>
-                      
-                      {/* 연기일자 (조회전용) */}
-                      <td className={cellStyle}>
-                        <div className={readOnlyStyle} style={{ color: item.devstatus_color || '#64748b', fontWeight: 'bold' }}>
-                          {item.cust_devdelaydate || ''}
-                        </div>
-                      </td>
+                                  case 'cust_devdate': case 'cust_reqdate': // 날짜 입력 (Date Input)
+                                    return <input type="date" disabled={!canEdit || isLocalManager || !editable} value={item[col.id] || ''} onChange={(e) => handleInputChange(idx, col.id, e.target.value)} className={dateInputStyle} />;
 
-                      {/* 고객 정보 및 연락처 */}
-                      <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_name || ''} onChange={(e) => handleInputChange(idx, 'cust_name', e.target.value)} className={inputStyle} /></td>
-                      <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_hpno1 || ''} onChange={(e) => handleInputChange(idx, 'cust_hpno1', e.target.value)} className={inputStyle} /></td>
-                      <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_hpno2 || ''} onChange={(e) => handleInputChange(idx, 'cust_hpno2', e.target.value)} className={inputStyle} /></td>
+                                  case 'cust_postno': // 우편번호 (주소검색 트리거)
+                                    return (
+                                      <input
+                                        type="text"
+                                        value={item.cust_postno || ''}
+                                        readOnly
+                                        onClick={() => canEdit && editable && handleAddressSearch(idx)}
+                                        className={`w-full h-full px-2 py-1 text-sm text-center outline-none transition-all
+                                          ${canEdit && editable ? 'cursor-pointer hover:bg-blue-50 text-blue-600 font-bold' : 'bg-slate-50 text-slate-500'}`}
+                                      />
+                                    );
 
-                      {/* 우편번호 데이터 출력 (수정 불가) */}
-                      {/* <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_postno}</div></td> */}
-                      {/* 우편번호 컬럼: 클릭 시 주소 검색 팝업 실행 */}
-                      <td className={cellStyle}>
-                        <input
-                          type="text"
-                          value={item.cust_postno || ''}
-                          readOnly // 직접 입력은 막음
-                          onClick={() => canEdit && handleAddressSearch(idx)} // 우편번호 클릭 시 검색 팝업
-                          className={`w-full h-full px-2 py-1 text-sm text-center outline-none transition-all
-                            ${canEdit ? 'cursor-pointer hover:bg-blue-50 text-blue-600 font-bold' : 'bg-slate-50 text-slate-500'}`}
-                        />
-                      </td>
-                      
-                      {/* 주소 (카카오 주소 연동) */}
-                      <td className={cellStyle}>
-                          <input 
-                            type="text"
-                            value={item.display_addr || ''}
-                            disabled={!canEdit}
-                            // 주소 정제 로직은 유지하되, 사용자가 직접 수정도 가능하게 처리
-                            onChange={(e) => handleInputChange(idx, 'display_addr', e.target.value)}
-                            className={`${inputStyle} font-bold ${canEdit ? 'text-slate-700' : 'text-slate-500'}`}
-                            placeholder="배송주소"
-                          />
-                        </td>
-                      {/* <td className={cellStyle}>
-                        <div 
-                          onClick={() => handleAddressSearch(idx)} 
-                          className={`px-2 py-1 text-sm font-bold truncate ${canEdit ? 'text-blue-600 cursor-pointer hover:bg-blue-50 rounded' : 'text-slate-500 cursor-default'}`}
-                        >
-                          {item.display_addr}
-                        </div>
-                      </td> */}
-                      <td className={cellStyle}><input id={`detail-addr-${idx}`} type="text" disabled={!canEdit} value={item.detail_addr || ''} onChange={(e) => handleInputChange(idx, 'detail_addr', e.target.value)} className={inputStyle} /></td>
-                      
-                      {/* 비고 및 기타 정보 */}
-                      <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_memo || ''} onChange={(e) => handleInputChange(idx, 'cust_memo', e.target.value)} className={inputStyle} /></td>
-                      <td className={cellStyle}><div className={readOnlyStyle}>{item.driver_name}</div></td>
-                      <td className={cellStyle}><div className={readOnlyStyle}>{item.driver_hpno}</div></td>
-                      {/* --- 상세품목 버튼 셀 --- */}
-                      <td className={cellStyle}>
-                        <div className="flex justify-center items-center h-full">
-                          <button 
-                            onClick={() => openItemModal(item)}
-                            className="bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-600 px-2 py-1 rounded text-[11px] font-black transition-all border border-slate-200 shadow-sm"
-                          >
-                            품목보기
-                          </button>
-                        </div>
-                      </td>
-                      {/* <td className={cellStyle}><div className={readOnlyStyle}>{item.cust_setname}</div></td> */}
-                      <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_setname || ''} onChange={(e) => handleInputChange(idx, 'cust_setname', e.target.value)} className={inputStyle} /></td>
-                      <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_inte || ''} onChange={(e) => handleInputChange(idx, 'cust_inte', e.target.value)} className={inputStyle} /></td>
-                      <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_devcost || ''} onChange={(e) => handleInputChange(idx, 'cust_devcost', e.target.value)} className={inputStyle} /></td>
-                      <td className={cellStyle}><input type="text" disabled={!canEdit} value={item.cust_devmemo || ''} onChange={(e) => handleInputChange(idx, 'cust_devmemo', e.target.value)} className={inputStyle} /></td>
-                      <td className={cellStyle}><div className={`${readOnlyStyle} text-blue-600 font-bold bg-blue-50/50`}> {item.area_driver_name || '-'}</div></td>
-                      <td className={cellStyle}><div className={readOnlyStyle}>{item.user_name}</div></td>
-                      {/* 1. SuperAdmin(001001) 전용 컬럼: 권역 및 온라인 ID 정보 */}
-                      {user?.user_role === '001001' && (
-                        <>
-                          <td className={cellStyle}><div className={readOnlyStyle}>{item.addr_oarea || '-'}</div></td>
-                          <td className={cellStyle}><div className={readOnlyStyle}>{item.area_driver_id || '-'}</div></td>
-                          <td className={cellStyle}><div className={readOnlyStyle}>{item.area_driver_uuid || '-'}</div></td>
-                        </>
-                      )}
+                                  case 'display_addr': // 배송주소 (Input)
+                                    return <input type="text" disabled={!canEdit || !editable} value={item.display_addr || ''} onChange={(e) => handleInputChange(idx, 'display_addr', e.target.value)} className={`${inputStyle} font-bold`} placeholder="배송주소" />;
+
+                                  case 'items_btn': // 상세품목 버튼 (가상 컬럼)
+                                    return (
+                                      <div className="flex justify-center items-center h-full">
+                                        <button onClick={() => openItemModal(item)} className="bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-600 px-2 py-1 rounded text-[11px] font-black transition-all border border-slate-200 shadow-sm">품목보기</button>
+                                      </div>
+                                    );
+
+                                  // --- 일반 텍스트 입력 컬럼들 ---
+                                  case 'cust_name': case 'cust_hpno1': case 'cust_hpno2': case 'detail_addr': case 'cust_memo': case 'cust_setname': case 'cust_inte': case 'cust_devcost': case 'cust_devmemo':
+                                    return <input type="text" disabled={!canEdit || !editable} value={item[col.id] || ''} onChange={(e) => handleInputChange(idx, col.id, e.target.value)} className={inputStyle} />;
+
+                                  // --- 읽기 전용 컬럼들 ---
+                                  case 'cust_gubun': case 'ordno': case 'cust_orddate': case 'cust_devdelaydate': case 'driver_name': case 'driver_hpno': case 'user_name': case 'addr_oarea': case 'area_driver_id': case 'area_driver_uuid':
+                                    const isBlueStyle = col.id === 'area_driver_name';
+                                    return <div className={`${readOnlyStyle} ${isBlueStyle ? 'text-blue-600 font-bold bg-blue-50/50' : ''}`}>{item[col.id] || '-'}</div>;
+
+                                  case 'area_driver_name': // 예외적인 스타일이 필요한 경우
+                                    return <div className={`${readOnlyStyle} text-blue-600 font-bold bg-blue-50/50`}>{item.area_driver_name || '-'}</div>;
+
+                                  default:
+                                    return <div className={readOnlyStyle}>{item[col.id] || '-'}</div>;
+                                }
+                              })()}
+                            </td>
+                          );
+                        })}
                     </tr>
                   );
                 })}
@@ -1316,8 +1401,19 @@ export default function DeliveryEditTablePage() {
                           {/* 삭제 버튼 추가 */}
                           <td className="p-2 text-center">
                             <button 
-                              onClick={() => handleItemDelete(dIdx)}
-                              className="text-red-400 hover:text-red-600 font-bold text-xs p-1"
+                              onClick={() => {
+                                // isMaster 권한이 있을 때만 삭제 로직 실행
+                                if (isMaster) {
+                                  handleItemDelete(dIdx);
+                                }
+                              }}
+                              // 권한이 없으면 HTML 레벨에서 비활성화 (포커스 및 클릭 방지)
+                              disabled={!isMaster}
+                              className={`font-bold text-xs p-1 transition-all ${
+                                isMaster 
+                                  ? 'text-red-400 hover:text-red-600 cursor-pointer' // 권한 있음: 기존 스타일
+                                  : 'text-slate-300 opacity-50 cursor-default'      // 권한 없음: 반응 없는 텍스트 스타일
+                              }`}
                             >
                               삭제
                             </button>
@@ -1335,23 +1431,119 @@ export default function DeliveryEditTablePage() {
             {/* 푸터 */}
             <div className="p-6 bg-white border-t flex justify-end items-center gap-6 shrink-0">
               {/* 품목 추가 버튼 (저장하기 왼쪽) */}
-              <button 
-                onClick={handleAddItem}
-                className="px-8 py-2.5 bg-emerald-500 text-white rounded-xl font-black text-sm hover:bg-emerald-600 transition-all shadow-md active:scale-95 flex items-center gap-2"
-              >
-                <span className="text-lg"></span> 품목 추가
-              </button>
-              <button 
-                onClick={saveItemDetails}
-                className="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-black text-sm hover:bg-blue-700 transition-all shadow-lg active:scale-95 flex items-center gap-2"
-              >
-                저장하기
-              </button>
+              {isMaster && (
+                <button 
+                  onClick={handleAddItem}
+                  className="px-8 py-2.5 bg-emerald-500 text-white rounded-xl font-black text-sm hover:bg-emerald-600 transition-all shadow-md active:scale-95 flex items-center gap-2"
+                >
+                  <span className="text-lg"></span> 품목 추가
+                </button>
+              )}
+              {/* 2. 저장하기 버튼: isMaster일 때만 노출 */}
+              {isMaster && (
+                <button 
+                  onClick={saveItemDetails}
+                  className="px-8 py-2.5 bg-blue-600 text-white rounded-xl font-black text-sm hover:bg-blue-700 transition-all shadow-lg active:scale-95 flex items-center gap-2"
+                >
+                  저장하기
+                </button>
+              )}
               <button 
                 onClick={() => setIsItemModalOpen(false)}
                 className="px-8 py-2.5 bg-slate-900 text-white rounded-xl font-black text-sm hover:bg-blue-600 transition-all shadow-lg active:scale-95"
               >
                 닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 수정 화면 항목 설정 모달 */}
+      {isConfigModalOpen && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white w-[450px] rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200">
+            {/* 헤더 */}
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div>
+                <h3 className="font-black text-slate-800 text-lg flex items-center gap-2">
+                  <span className="text-blue-600"></span> 사용자 설정
+                </h3>
+                <p className="text-[11px] text-slate-400 font-bold mt-1">화면에 표시할 항목과 순서를 변경하세요.</p>
+              </div>
+              <button 
+                onClick={() => setIsConfigModalOpen(false)} 
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {/* 컬럼 리스트 영역 */}
+            <div className="p-4 max-h-[60vh] overflow-y-auto custom-scrollbar bg-white">
+              <div className="flex flex-col gap-2">
+                {columnSettings.map((col, index) => {
+                  // SuperAdmin 전용 컬럼은 일반 관리자에게는 설정 목록에서도 숨김 처리
+                  const isSuperOnly = ['addr_oarea', 'area_driver_id', 'area_driver_uuid'].includes(col.id);
+                  if (isSuperOnly && user?.user_role !== '001001') return null;
+
+                  return (
+                    <div 
+                      key={col.id} 
+                      className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all ${
+                        col.visible 
+                          ? 'bg-blue-50/30 border-blue-100 shadow-sm' 
+                          : 'bg-slate-50 border-slate-100 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={col.visible} 
+                            onChange={() => toggleColumnVisible(col.id)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                        <span className={`text-sm font-black ${col.visible ? 'text-slate-800' : 'text-slate-400'}`}>
+                          {col.label}
+                        </span>
+                      </div>
+
+                      <div className="flex gap-1.5">
+                        <button 
+                          onClick={() => moveColumn(index, 'up')} 
+                          className="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm active:scale-90"
+                        >
+                          ▲
+                        </button>
+                        <button 
+                          onClick={() => moveColumn(index, 'down')} 
+                          className="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm active:scale-90"
+                        >
+                          ▼
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 하단 버튼 영역 */}
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+              <button 
+                onClick={resetColumnSettings}
+                className="px-6 py-3.5 bg-white border border-slate-300 text-slate-600 rounded-2xl font-black text-sm hover:bg-slate-100 transition-all active:scale-95"
+              >
+                초기화
+              </button>
+              <button 
+                onClick={() => saveColumnSettings(columnSettings)}
+                className="flex-1 py-3.5 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-blue-600 transition-all shadow-lg active:scale-95"
+              >
+                설정 저장 및 적용
               </button>
             </div>
           </div>

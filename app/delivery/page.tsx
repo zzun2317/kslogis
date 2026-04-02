@@ -9,6 +9,16 @@ export default function DeliveryAdminPage() {
 
   // --- 상태 정의 ---
   // const [searchDate, setSearchDate] = useState(new Date().toISOString().split('T')[0]);
+  const DEFAULT_DELIVERY_COLUMNS = [
+    { id: 'status_group', label: '상태', visible: true },
+    { id: 'type_group', label: '구분', visible: true },
+    { id: 'date_group', label: '일자정보', visible: true },
+    { id: 'cust_info_group', label: '고객/연락처', visible: true },
+    { id: 'driver_memo_group', label: '기사/배송메모', visible: true },
+    { id: 'center_addr_group', label: '물류센터/배송주소/고객메모', visible: true },
+  ];
+  const [columnSettings, setColumnSettings] = useState<any[]>([]);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const today = new Date().toISOString().split('T')[0];
   const [startDate, setStartDate] = useState(today); // 시작일 (시스템 일자 기본)
   const [endDate, setEndDate] = useState(today);     // 종료일 (시스템 일자 기본)
@@ -34,6 +44,64 @@ export default function DeliveryAdminPage() {
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
   const [dateSearchType, setDateSearchType] = useState<'DEV' | 'ORD'>('ORD'); // 기본값 수주일
+
+  // 1. 순서 변경 함수 (Up/Down)
+  const moveColumn = (index: number, direction: 'up' | 'down') => {
+    const newSettings = [...columnSettings];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    
+    if (targetIndex < 0 || targetIndex >= newSettings.length) return;
+    
+    // 위치 교체
+    [newSettings[index], newSettings[targetIndex]] = [newSettings[targetIndex], newSettings[index]];
+    setColumnSettings(newSettings);
+  };
+
+  // 2. 체크박스 토글 함수
+  const toggleColumnVisible = (id: string) => {
+    setColumnSettings(prev => prev.map(col => 
+      col.id === id ? { ...col, visible: !col.visible } : col
+    ));
+  };
+
+  // 3. DB 저장 및 적용 (Upsert)
+  const saveColumnSettings = async (newSettings: any[]) => {
+    if (!user?.id) {
+      alert("로그인 정보가 없습니다.");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('user_menu_config')
+        .upsert({
+          user_id: user.id,
+          menu_id: 'DELIVERY_LIST', // 배송 조회 메뉴 식별자
+          column_settings: newSettings,
+          updated_at: new Date().toISOString(),
+        }, { 
+          onConflict: 'user_id, menu_id' // 복합 PK 충돌 시 업데이트
+        });
+
+      if (error) throw error;
+
+      // 저장 후 모달 닫기
+      setIsConfigModalOpen(false);
+      alert('항목 설정이 저장되었습니다.');
+    } catch (err) {
+      console.error('설정 저장 실패:', err);
+      alert('설정 저장 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 항목 초기화 함수
+  const resetColumnSettings = () => {
+    if (confirm("모든 항목 설정을 처음 상태로 되돌리시겠습니까?")) {
+      setColumnSettings(DEFAULT_DELIVERY_COLUMNS);
+      // 선택 사항: 즉시 DB에 저장하고 싶다면 아래 주석 해제
+      saveColumnSettings(DEFAULT_DELIVERY_COLUMNS); 
+    }
+  };
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!scrollRef.current) return;
@@ -101,7 +169,7 @@ export default function DeliveryAdminPage() {
 
     fetchCodes();
   }, []);
-  
+
   // useEffect(() => {
   //   const fetchStatusCodes = async () => {
   //     try {
@@ -140,6 +208,34 @@ export default function DeliveryAdminPage() {
   //   };
   //   fetchCenterCodes();
   // }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const fetchUserConfig = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_menu_config')
+          .select('column_settings')
+          .eq('user_id', user.id)
+          .eq('menu_id', 'DELIVERY_LIST') // 배송조회 메뉴 ID
+          .single();
+
+        if (data?.column_settings) {
+          // DB에 저장된 설정이 있으면 적용
+          setColumnSettings(data.column_settings);
+        } else {
+          // 저장된 설정이 없으면 기본값 적용
+          setColumnSettings(DEFAULT_DELIVERY_COLUMNS);
+        }
+      } catch (err) {
+        console.error('설정 로드 실패:', err);
+        setColumnSettings(DEFAULT_DELIVERY_COLUMNS);
+      }
+    };
+
+    fetchUserConfig();
+  }, [user?.id]);
 
   // 날짜 설정 핸들러 추가
   const setDateRange = (type: 'today' | 'yesterday' | 'month') => {
@@ -511,6 +607,17 @@ export default function DeliveryAdminPage() {
               </div>
               
               <div className="flex items-center gap-3">
+                {/* 항목 설정 버튼 */}
+                <button
+                  onClick={() => setIsConfigModalOpen(true)}
+                  className="flex items-center gap-1 px-4 h-[40px] bg-white border border-slate-300 text-slate-700 rounded-xl font-black text-sm hover:bg-slate-50 transition-all shadow-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  항목설정
+                </button>
                 <button 
                   onClick={fetchDeliveryData} 
                   disabled={loading} 
@@ -553,19 +660,45 @@ export default function DeliveryAdminPage() {
             <table className="w-full text-left border-collapse min-w-[1200px] table-fixed">
               <thead>
                 <tr className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 shadow-md">
-                  <th className="p-5 text-sm font-black text-slate-300 text-center w-[100px]">상태</th>
-                  <th className="p-5 text-sm font-black text-slate-300 text-center w-[120px]">구분</th>
-                  <th className="p-5 text-sm font-black text-slate-300 text-center w-[170px]">일자정보</th>
-                  <th className="p-5 text-sm font-black text-slate-300 text-center w-[170px]">고객/연락처</th>
-                  <th className="p-5 text-sm font-black text-slate-300 text-center w-[200px]">기사/배송메모</th>
-                  <th className="p-5 text-sm font-black text-slate-300">물류센터 / 배송주소 / 고객메모</th>
+                  {columnSettings
+                    .filter(col => col.visible) // 체크된 항목만 표시
+                    .map((col) => {
+                      // 각 그룹별로 기존에 설정한 너비(width)를 매칭해줍니다.
+                      let widthClass = "";
+                      switch (col.id) {
+                        case 'status_group': widthClass = "w-[100px]"; break;
+                        case 'type_group': widthClass = "w-[120px]"; break;
+                        case 'date_group': widthClass = "w-[170px]"; break;
+                        case 'cust_info_group': widthClass = "w-[170px]"; break;
+                        case 'driver_memo_group': widthClass = "w-[200px]"; break;
+                        case 'center_addr_group': widthClass = ""; break; // 마지막은 자동확장
+                        default: widthClass = "w-[150px]";
+                      }
+
+                      return (
+                        <th 
+                          key={col.id} 
+                          className={`p-5 text-sm font-black text-slate-300 text-center ${widthClass}`}
+                        >
+                          {col.label}
+                        </th>
+                      );
+                    })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {deliveryData.length === 0 ? (
-                  <tr><td colSpan={6} className="p-20 text-center text-slate-400 font-bold">데이터가 없습니다.</td></tr>
+                  <tr>
+                    <td 
+                      colSpan={columnSettings.filter(col => col.visible).length} 
+                      className="p-20 text-center text-slate-400 font-bold"
+                    >
+                      데이터가 없습니다.
+                    </td>
+                  </tr>
                 ) : (
                   deliveryData.map((item) => {
+
                     const status = getStatusInfo(item.cust_devstatus);
                     const showDevCost = item.cust_devcost && String(item.cust_devcost) !== '0';
                     
@@ -575,84 +708,114 @@ export default function DeliveryAdminPage() {
                           onClick={() => toggleRow(item.cust_ordno)} 
                           className={`cursor-pointer transition-all ${expandedId === item.cust_ordno ? 'bg-blue-50/50' : 'hover:bg-slate-50'}`}
                         >
-                          <td className="p-5 text-center">
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // '배송전(002001)'을 제외한 모든 유효 상태에서 팝업 오픈
-                                if (['002003', '002004', '002008'].includes(item.cust_devstatus)) {
-                                  openStatusModal(item);
+                          {/* 🚀 여기서부터 설정된 컬럼 순서대로 렌더링합니다 */}
+                            {columnSettings
+                              .filter(col => col.visible)
+                              .map((col) => {
+                                switch (col.id) {
+                                  case 'status_group': // 1. 상태 (주문번호 포함)
+                                    return (
+                                      <td key={col.id} className="p-5 text-center">
+                                        <span
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (['002003', '002004', '002008'].includes(item.cust_devstatus)) {
+                                              openStatusModal(item);
+                                            }
+                                          }} 
+                                          className={`
+                                            inline-block w-20 py-1.5 rounded-full text-xs font-black text-white shadow-sm transition-all
+                                            ${['002003', '002004', '002008'].includes(item.cust_devstatus) 
+                                              ? 'cursor-pointer underline underline-offset-4 decoration-white/50 hover:scale-105 hover:brightness-110 active:scale-95' 
+                                              : 'cursor-default'}
+                                          `}
+                                          style={{ backgroundColor: item.status_hex }} 
+                                        >
+                                          {item.status_name}
+                                        </span>
+                                        <div className="text-[10px] text-slate-400 mt-2 font-mono">{item.cust_ordno}</div>
+                                      </td>
+                                    );
+
+                                  case 'type_group': // 2. 구분
+                                    return (
+                                      <td key={col.id} className="p-5 text-center whitespace-nowrap">
+                                        <span className={`px-3 py-1 rounded-md text-xs font-black ${item.cust_gubun === '온라인' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
+                                          {item.cust_gubun || '-'}
+                                        </span>
+                                      </td>
+                                    );
+
+                                  case 'date_group': // 3. 일자정보
+                                    return (
+                                      <td key={col.id} className="p-5">
+                                        <div className="flex flex-col gap-1">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded font-bold">수주</span>
+                                            <span className="text-sm font-bold text-slate-700">{item.cust_orddate || '-'}</span>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[10px] bg-slate-200 px-1 rounded font-bold">배송</span>
+                                            <span className="text-sm font-bold text-slate-700">{item.cust_devdate || '-'}</span>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[10px] bg-amber-100 text-amber-700 px-1 rounded font-bold">요청</span>
+                                            <span className="text-sm font-bold text-slate-700">{item.cust_reqdate || '-'}</span>
+                                          </div>
+                                        </div>
+                                      </td>
+                                    );
+
+                                  case 'cust_info_group': // 4. 고객/연락처
+                                    return (
+                                      <td key={col.id} className="p-5">
+                                        <div className="text-lg font-black text-slate-900">{item.cust_name}</div>
+                                        <div className="text-xs text-blue-600 font-black">{item.cust_hpno1}</div>
+                                      </td>
+                                    );
+
+                                  case 'driver_memo_group': // 5. 기사/배송메모
+                                    return (
+                                      <td key={col.id} className="p-5">
+                                        <div className="text-base font-black text-slate-800">{item.driver_name || '미지정'}</div>
+                                        {showDevCost && (
+                                          <div className="text-sm text-slate-600 font-bold">
+                                            {isNaN(Number(item.cust_devcost)) ? item.cust_devcost : Number(item.cust_devcost).toLocaleString() + '원'}
+                                          </div>
+                                        )}
+                                      </td>
+                                    );
+
+                                  case 'center_addr_group': // 6. 물류/주소/메모
+                                    return (
+                                      <td key={col.id} className="p-5">
+                                        <div className="flex items-center gap-3 mb-2 overflow-hidden">
+                                          <span className="shrink-0 px-2 py-0.5 bg-slate-100 border border-slate-300 text-slate-600 text-[11px] font-black rounded">
+                                            {item.center_name || '미지정'}
+                                          </span>
+                                          <button 
+                                            onClick={(e) => { e.stopPropagation(); openMapModal(e, item.cust_address); }}
+                                            className="text-left text-sm font-bold text-slate-700 hover:text-blue-600 hover:underline transition-all truncate flex-1"
+                                            title={item.cust_address}
+                                          >
+                                            📍 {item.cust_address}
+                                          </button>
+                                        </div>  
+                                        <div className="bg-red-50 p-2 rounded-lg border border-red-100">
+                                          <div className="text-[11px] text-red-400 font-black mb-1 uppercase tracking-tighter">고객메모</div>
+                                          <div className="text-[12px] text-black-600 font-bold leading-tight">
+                                            {item.cust_memo || '-'}
+                                          </div>
+                                        </div>                              
+                                      </td>
+                                    );
+                                  default:
+                                    return null;
                                 }
-                              }} 
-                              className={`
-                                inline-block w-20 py-1.5 rounded-full text-xs font-black text-white shadow-sm transition-all
-                                ${['002003', '002004', '002008'].includes(item.cust_devstatus) 
-                                  ? 'cursor-pointer underline underline-offset-4 decoration-white/50 hover:scale-105 hover:brightness-110 active:scale-95' 
-                                  : 'cursor-default'}
-                              `}
-                              style={{ backgroundColor: item.status_hex }} 
-                            >
-                              {item.status_name}
-                            </span>
-                            <div className="text-[10px] text-slate-400 mt-2 font-mono">{item.cust_ordno}</div>
-                          </td>
-                          <td className="p-5 text-center whitespace-nowrap">
-                            <span className={`px-3 py-1 rounded-md text-xs font-black ${item.cust_gubun === '온라인' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
-                              {item.cust_gubun || '-'}
-                            </span>
-                          </td>
-                          <td className="p-5">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded font-bold">수주</span>
-                                <span className="text-sm font-bold text-slate-700">{item.cust_orddate || '-'}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] bg-slate-200 px-1 rounded font-bold">배송</span>
-                                <span className="text-sm font-bold text-slate-700">{item.cust_devdate || '-'}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] bg-amber-100 text-amber-700 px-1 rounded font-bold">요청</span>
-                                <span className="text-sm font-bold text-slate-700">{item.cust_reqdate || '-'}</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-5">
-                              <div className="text-lg font-black text-slate-900">{item.cust_name}</div>
-                              <div className="text-xs text-blue-600 font-black">{item.cust_hpno1}</div>
-                          </td>
-                          <td className="p-5">
-                              <div className="text-base font-black text-slate-800">{item.driver_name || '미지정'}</div>
-                              {showDevCost && (
-                                <div className="text-sm text-slate-600 font-bold">
-                                  {isNaN(Number(item.cust_devcost)) ? item.cust_devcost : Number(item.cust_devcost).toLocaleString() + '원'}
-                                </div>
-                              )}
-                          </td>
-                          <td className="p-5">
-                            <div className="flex items-center gap-3 mb-2 overflow-hidden">
-                              {/* 물류센터 배지 - 고정 너비 유지 */}
-                              <span className="shrink-0 px-2 py-0.5 bg-slate-100 border border-slate-300 text-slate-600 text-[11px] font-black rounded">
-                                {item.center_name || '미지정'}
-                              </span>
-                              <button 
-                                onClick={(e) => openMapModal(e, item.cust_address)}
-                                className="text-left text-sm font-bold text-slate-700 hover:text-blue-600 hover:underline transition-all truncate flex-1"
-                                title={item.cust_address} // 마우스 오버 시 전체 주소 툴팁 표시
-                              >
-                                📍 {item.cust_address}
-                              </button>
-                            </div>  
-                            <div className="bg-red-50 p-2 rounded-lg border border-red-100">
-                              <div className="text-[11px] text-red-400 font-black mb-1 uppercase tracking-tighter">고객메모</div>
-                              <div className="text-[12px] text-black-600 font-bold leading-tight">
-                                {item.cust_memo || '-'}
-                              </div>
-                            </div>                              
-                          </td>
+                              })}
                         </tr>
                         <tr>
-                          <td colSpan={6} className="p-0 border-none">
+                          <td colSpan={columnSettings.filter(col => col.visible).length} className="p-0 border-none">
                             <div className={`overflow-hidden transition-all duration-300 ${expandedId === item.cust_ordno ? 'max-h-[800px]' : 'max-h-0'}`}>
                               <div className="p-4 px-12 pb-8 bg-blue-50/20">
                                 <div className="bg-white rounded-2xl border-2 border-blue-100 shadow-sm overflow-hidden">
@@ -946,6 +1109,93 @@ export default function DeliveryAdminPage() {
             {/* 3. 하단 안내 (선택사항) */}
             <div className="p-4 bg-white text-center border-t">
               <p className="text-xs text-slate-400 font-medium">배경을 클릭하거나 ✕ 버튼을 누르면 닫힙니다.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 조회 화면 항목 설정 모달 (수정 화면과 UI 통일) */}
+      {isConfigModalOpen && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-white w-[450px] rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200">
+            {/* 헤더 부분 */}
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div>
+                <h3 className="font-black text-slate-800 text-lg flex items-center gap-2">
+                  <span className="text-blue-600"></span> 사용자 설정
+                </h3>
+                <p className="text-[11px] text-slate-400 font-bold mt-1">화면에 표시할 항목과 순서를 변경하세요.</p>
+              </div>
+              <button 
+                onClick={() => setIsConfigModalOpen(false)} 
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {/* 컬럼 리스트 영역 (토글 스위치 적용) */}
+            <div className="p-4 max-h-[60vh] overflow-y-auto custom-scrollbar bg-white">
+              <div className="flex flex-col gap-2">
+                {columnSettings.map((col, index) => (
+                  <div 
+                    key={col.id} 
+                    className={`flex items-center justify-between p-3.5 rounded-2xl border transition-all ${
+                      col.visible 
+                        ? 'bg-blue-50/30 border-blue-100 shadow-sm' 
+                        : 'bg-slate-50 border-slate-100 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {/* 세련된 토글 스위치 디자인 */}
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={col.visible} 
+                          onChange={() => toggleColumnVisible(col.id)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                      </label>
+                      <span className={`text-sm font-black ${col.visible ? 'text-slate-800' : 'text-slate-400'}`}>
+                        {col.label}
+                      </span>
+                    </div>
+
+                    {/* 순서 변경 버튼 (디자인 개선) */}
+                    <div className="flex gap-1.5">
+                      <button 
+                        onClick={() => moveColumn(index, 'up')} 
+                        className="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm active:scale-90"
+                      >
+                        ▲
+                      </button>
+                      <button 
+                        onClick={() => moveColumn(index, 'down')} 
+                        className="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm active:scale-90"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 하단 버튼 영역 */}
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+              <button 
+                onClick={resetColumnSettings}
+                className="px-6 py-3.5 bg-white border border-slate-300 text-slate-600 rounded-2xl font-black text-sm hover:bg-slate-100 transition-all active:scale-95"
+              >
+                초기화
+              </button>
+              <button 
+                onClick={() => saveColumnSettings(columnSettings)}
+                className="flex-1 py-3.5 bg-slate-900 text-white rounded-2xl font-black text-sm hover:bg-blue-600 transition-all shadow-lg active:scale-95"
+              >
+                설정 저장 및 적용
+              </button>
             </div>
           </div>
         </div>
