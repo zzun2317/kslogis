@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '@/lib/supabase'; // 설정된 경로에 맞게 수정 필요
+import * as XLSX from 'xlsx';
 
 export default function SabangnetVerifyPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -11,6 +12,15 @@ export default function SabangnetVerifyPage() {
 	const topScrollRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
 	const [tableWidth, setTableWidth] = useState(0);
+	const [searchTerm, setSearchTerm] = useState('');
+	const filteredOrders = useMemo(() => {
+		if (!searchTerm) return orders;
+		return orders.filter(order => 
+			order.order_id?.includes(searchTerm) || 
+			order.receive_name?.includes(searchTerm) ||
+			order.receive_tel?.includes(searchTerm)
+		);
+	}, [orders, searchTerm]);
 	
   // 1. 초기 시스템 날짜 설정 (오늘 날짜)
   useEffect(() => {
@@ -129,6 +139,67 @@ export default function SabangnetVerifyPage() {
 		}
 	};
 
+	const handleExcelDownloadERP = (format: 'xls' | 'xlsx') => {
+		if (filteredOrders.length === 0) {
+			alert("다운로드할 데이터가 없습니다.");
+			return;
+		}
+
+		try {
+			// 1. ERP 양식에 맞춘 데이터 매핑
+			const excelData = filteredOrders.map((item) => {
+				const unitPrice = Number(item.pay_cost) || 0; // 단가 (필요시 적절한 필드로 변경)
+				const quantity = Number(item.order_count) || 1; // 수량
+				// 특수문자(/, -, 공백 등)를 모두 제거하고 숫자만 추출
+				const rawDate = item.order_date || '';
+				const cleanDate = rawDate.replace(/[^0-9]/g, ''); // 숫자 외의 모든 문자 제거
+				const finalOrderDate = cleanDate.slice(0, 8);
+
+				return {
+					'사업부문': '금성침대',
+					'주문일자': finalOrderDate, // YYYYMMDD
+					'거래처': item.mall_id || '', 
+					'납품처': item.receive_info || '',
+					'품목': item.erp_set_name || '', // ERP세트품명 매핑
+					'단위': 'EA',
+					'부가세포함': '1',
+					'단가': unitPrice,
+					'수량': quantity,
+					'금액': unitPrice * quantity,
+					'창고': '', // 필요한 경우 고정값 입력 가능
+					'비고': item.delv_msg1 || '',
+					'운송비': 0,
+					'운송비부가세': 0,
+					'시공비': 0,
+					'시공비부가세': 0,
+					'매체': item.order_gubun === '사방넷' ? '인터넷' : '방송',
+					'주문번호': item.order_id || '',
+					'주문인': item.user_name || '',
+					'주문인연락처': item.user_cel || '',
+					'통화내용': '',
+					'사방넷주문번호': item.idx || '',
+					'납기일': '',
+					'상품번호': item.mall_product_id || '' // 쇼핑몰상품코드
+				};
+			});
+
+			// 2. 워크시트 및 워크북 생성
+			const worksheet = XLSX.utils.json_to_sheet(excelData);
+			const workbook = XLSX.utils.book_new();
+			XLSX.utils.book_append_sheet(workbook, worksheet, "ERP_UPLOAD");
+
+			// 3. 파일 생성 및 다운로드 (확장자 선택 적용)
+			const fileName = `ERP_주문수집_${searchDate}.${format}`;
+			
+			// xlsx 라이브러리의 writeFile은 확장자에 따라 내부 버전을 자동으로 조정합니다.
+			XLSX.writeFile(workbook, fileName, { bookType: format });
+
+		} catch (error) {
+			console.error("ERP Excel download error:", error);
+			alert("엑셀 생성 중 오류가 발생했습니다.");
+		}
+	};
+
 	return (
     <div className="flex flex-col h-screen bg-slate-50">
       {/* 헤더 섹션 */}
@@ -163,6 +234,33 @@ export default function SabangnetVerifyPage() {
 									</span>
 								</>
 							)}
+						</button>
+						{/* 신규: 엑셀파일 내려받기(ERP) 버튼 추가 */}
+						<button
+							onClick={() => {
+								// 확장자 선택 로직
+								const choice = confirm("'확인'을 누르면 .xlsx로, '취소'를 누르면 .xls로 다운로드합니다.");
+								handleExcelDownloadERP(choice ? 'xlsx' : 'xls');
+							}}
+							className="flex items-center gap-2 px-6 h-[45px] bg-emerald-600 text-white rounded-xl font-black text-sm hover:bg-emerald-700 transition-all shadow-lg active:scale-95 group"
+						>
+							<svg 
+								xmlns="http://www.w3.org/2000/svg" 
+								width="20" 
+								height="20" 
+								viewBox="0 0 24 24" 
+								fill="none" 
+								stroke="currentColor" 
+								strokeWidth="2.5" 
+								strokeLinecap="round" 
+								strokeLinejoin="round"
+								className="group-hover:translate-y-0.5 transition-transform"
+							>
+								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+								<polyline points="7 10 12 15 17 10" />
+								<line x1="12" y1="15" x2="12" y2="3" />
+							</svg>
+							엑셀파일 내려받기(ERP)
 						</button>
           </div>
         </div>

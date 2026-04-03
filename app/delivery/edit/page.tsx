@@ -7,7 +7,7 @@ import { useAuth } from '@/hook/useAuth';
 
 export default function DeliveryEditTablePage() {
   // 1. 커스텀 훅을 통한 권한 정보 추출
-  const { user, isLocalManager, userCenterList, canEdit, isDriver, isMaster, userLevel } = useAuth();
+  const { user, isLocalManager, userCenterList, canEdit, isDriver, isMaster, userLevel, isSuperAdmin } = useAuth();
   const COMPLETE_STATUS = '002003'; // 배송완료 상태 코드
   
   const isRowEditable = (item: any) => {
@@ -53,7 +53,10 @@ export default function DeliveryEditTablePage() {
     { id: 'cust_inte', label: '시공정보', visible: true },
     { id: 'cust_devcost', label: '배송비고', visible: true },
     { id: 'cust_devmemo', label: '배송메모', visible: true },
-    { id: 'area_driver_name', label: '온라인 배송기사', visible: true },
+    { id: 'addr_oarea', label: '온라인배송지역', visible: isSuperAdmin },
+    { id: 'area_driver_name', label: '온라인 배송기사', visible: isSuperAdmin },
+    { id: 'area_driver_id', label: '온라인배송ID', visible: isSuperAdmin },
+    { id: 'area_driver_uuid', label: '온라인배송UUID', visible: isSuperAdmin },
     { id: 'user_name', label: '담당', visible: true },
   ];
   const [columnSettings, setColumnSettings] = useState<any[]>([]);
@@ -91,6 +94,15 @@ export default function DeliveryEditTablePage() {
   const [devcenterList, setDevcenterList] = useState<any[]>([]);
   const [statusList, setStatusList] = useState<any[]>([]); 
   const [selectedTargetDriver, setSelectedTargetDriver] = useState(''); 
+
+  // 페이지 분할
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(100); // 기본 100건
+  const totalItems = deliveryData.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = deliveryData.slice(indexOfFirstItem, indexOfLastItem);
 
   const [showTopBtn, setShowTopBtn] = useState(false);
 
@@ -726,6 +738,23 @@ export default function DeliveryEditTablePage() {
     }
   };
 
+  // 표시할 페이지 번호 범위 계산 (현재 페이지 기준 앞뒤로 출력)
+  const getPageNumbers = () => {
+    const pageNumbers = [];
+    const maxVisiblePages = 5; // 한 번에 보여줄 페이지 번호 개수
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage < maxVisiblePages - 1) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+    return pageNumbers;
+  };
+
   // 상세품목 모달 오픈 함수
   const openItemModal = async (item: any) => {
     setSelectedOrderForItems(item);
@@ -1087,6 +1116,20 @@ export default function DeliveryEditTablePage() {
                 항목설정
               </button>
 
+              {/* 조회 건수 드롭다운 */}
+              <select 
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1); // 건수 변경 시 첫 페이지로 이동
+                }}
+                className="h-9 px-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-gray-700"
+              >
+                {[100, 300, 500, 700].map(size => (
+                  <option key={size} value={size}>{size}건씩 보기</option>
+                ))}
+              </select>
+
               {/* 조회 버튼 */}
               <button onClick={fetchDeliveryData} disabled={loading} className="bg-slate-900 text-white px-5 py-2 rounded-xl font-black text-xs hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg">
                 {loading ? '조회 중...' : '조회하기'}
@@ -1123,14 +1166,14 @@ export default function DeliveryEditTablePage() {
         </div>
 
         {/* 상단 가로 스크롤 동기화용 더미 바 */}
-        <div 
+        {/* <div 
           ref={topScrollRef} 
           onScroll={onTopScroll}
           className="overflow-x-auto overflow-y-hidden custom-scrollbar bg-white border-x border-t border-slate-200 rounded-t-xl" 
           style={{ height: '18px', minHeight: '18px' }}
         >
           <div style={{ width: `${totalTableWidth}px`, height: '1px' }}></div>
-        </div>
+        </div> */}
 
         {/* 메인 테이블 컨테이너 */}
         <div className="bg-white rounded-b-xl shadow-xl border border-slate-200 flex-1 min-h-0 text-slate-700 overflow-hidden flex flex-col mb-10">
@@ -1154,7 +1197,8 @@ export default function DeliveryEditTablePage() {
                       type="checkbox" 
                       className="w-4 h-4 accent-blue-500 cursor-pointer" 
                       checked={deliveryData.length > 0 && selectedRows.length === deliveryData.length} 
-                      onChange={(e) => setSelectedRows(e.target.checked ? deliveryData.map(i => i.cust_ordno) : [])} 
+                      // onChange={(e) => setSelectedRows(e.target.checked ? deliveryData.map(i => i.cust_ordno) : [])}
+                      onChange={(e) => setSelectedRows(e.target.checked ? currentItems.map(i => i.cust_ordno) : [])} 
                     />
                     <ResizeHandle field="chk" />
                   </th>
@@ -1164,7 +1208,7 @@ export default function DeliveryEditTablePage() {
                     .filter(col => col.visible)
                     .map((col) => {
                       // SuperAdmin 전용 컬럼 예외 처리 (설정에 있더라도 권한 없으면 필터링)
-                      const superAdminOnlyIds = ['addr_oarea', 'area_driver_id', 'area_driver_uuid'];
+                      const superAdminOnlyIds = ['addr_oarea', 'area_driver_name', 'area_driver_id', 'area_driver_uuid'];
                       if (superAdminOnlyIds.includes(col.id) && user?.user_role !== '001001') {
                         return null;
                       }
@@ -1195,18 +1239,21 @@ export default function DeliveryEditTablePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
-                {deliveryData.map((item, idx) => {
-                  const isDirty = checkIfDirty(idx);
+                {/* {deliveryData.map((item, idx) => { */}
+                {currentItems.map((item, idx) => {
+                  // const isDirty = checkIfDirty(idx);
+                  const isDirty = checkIfDirty(item.cust_ordno);
                   const isSelected = selectedRows.includes(item.cust_ordno);
                   const stickyCellBg = isSelected ? 'bg-blue-50' : isDirty ? 'bg-blue-100' : 'bg-white';
                   const editable = isRowEditable(item); // 행 수정 가능 여부
+                  const displayIdx = (currentPage - 1) * itemsPerPage + idx + 1;
 
                   return (
                     <tr key={item.cust_ordno} className={`transition-colors hover:bg-slate-50 ${isSelected ? 'bg-blue-50' : isDirty ? 'bg-blue-50/50' : 'bg-white'}`}>
                       
                       {/* 1. 좌측 고정 영역 (No, 저장, 체크박스) */}
                       <td className={`sticky left-0 z-20 p-2 text-center border-r border-slate-100 ${stickyCellBg}`} style={{ left: stickyLeft.no }}>
-                        <div className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-black ${isDirty ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>{idx + 1}</div>
+                        <div className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-black ${isDirty ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>{displayIdx}</div>
                       </td>
                       <td className={`sticky z-20 p-0 text-center align-middle border-r border-slate-100 ${stickyCellBg}`} style={{ left: stickyLeft.save }}>
                         <button 
@@ -1232,7 +1279,7 @@ export default function DeliveryEditTablePage() {
                             <td key={col.id} className={cellStyle}>
                               {(() => {
                                 switch (col.id) {
-                                  case 'devstatus_name': // 배송상태 (Select)
+                                  case 'cust_devstatus': // 배송상태 (Select)
                                     return (
                                       <select 
                                         disabled={!canEdit || isLocalManager || !editable}
@@ -1287,12 +1334,31 @@ export default function DeliveryEditTablePage() {
                                     return <input type="text" disabled={!canEdit || !editable} value={item[col.id] || ''} onChange={(e) => handleInputChange(idx, col.id, e.target.value)} className={inputStyle} />;
 
                                   // --- 읽기 전용 컬럼들 ---
-                                  case 'cust_gubun': case 'ordno': case 'cust_orddate': case 'cust_devdelaydate': case 'driver_name': case 'driver_hpno': case 'user_name': case 'addr_oarea': case 'area_driver_id': case 'area_driver_uuid':
+                                  case 'cust_gubun': case 'ordno': case 'cust_orddate': case 'cust_devdelaydate': case 'driver_name': case 'driver_hpno': case 'user_name':
                                     const isBlueStyle = col.id === 'area_driver_name';
                                     return <div className={`${readOnlyStyle} ${isBlueStyle ? 'text-blue-600 font-bold bg-blue-50/50' : ''}`}>{item[col.id] || '-'}</div>;
 
-                                  case 'area_driver_name': // 예외적인 스타일이 필요한 경우
-                                    return <div className={`${readOnlyStyle} text-blue-600 font-bold bg-blue-50/50`}>{item.area_driver_name || '-'}</div>;
+                                  case 'addr_oarea': 
+                                  case 'area_driver_name':
+                                  case 'area_driver_id': 
+                                  case 'area_driver_uuid': {
+                                    // 1. 슈퍼관리자(001001)인지 확실하게 체크
+                                    // user 객체가 로드되지 않았을 때(null)를 대비해 안전하게 처리
+                                    const isSuperAdmin = user && String(user.user_role) === '001001';
+
+                                    // 2. 슈퍼관리자가 아니면 아예 빈 칸(null) 혹은 '권한없음' 표시
+                                    if (!isSuperAdmin) {
+                                      return <div className={readOnlyStyle}>-</div>; 
+                                      // 혹은 return null; (컬럼 설정에서 숨겼더라도 데이터 보호 차원에서 필요)
+                                    }
+
+                                    // 3. 슈퍼관리자일 경우에만 데이터 출력
+                                    return (
+                                      <div className={`${readOnlyStyle} bg-yellow-50/30 font-semibold text-amber-700`}>
+                                        {item[col.id] || '-'}
+                                      </div>
+                                    );
+                                  }  
 
                                   default:
                                     return <div className={readOnlyStyle}>{item[col.id] || '-'}</div>;
@@ -1307,8 +1373,71 @@ export default function DeliveryEditTablePage() {
               </tbody>
             </table>
           </div>
+          {/* 페이지네이션 및 요약 정보 */}
+          {deliveryData.length > 0 && (
+          <div className="mt-2 mb-4 px-2 border-t border-gray-100 pt-2">
+            {/* 요약 정보와 페이지 이동을 아주 콤팩트하게 배치 */}
+            <div className="flex flex-col items-center gap-2">
+              
+              {/* 숫자 및 이동 버튼 그룹 (여백 최소화) */}
+              <div className="flex items-center gap-0.5">
+                <button 
+                  onClick={() => { setCurrentPage(1); window.scrollTo(0,0); }}
+                  disabled={currentPage === 1}
+                  className="p-1 text-[10px] text-gray-400 hover:text-blue-600 disabled:opacity-20"
+                >
+                  처음
+                </button>
+                <button 
+                  onClick={() => { setCurrentPage(prev => Math.max(prev - 1, 1)); window.scrollTo(0,0); }}
+                  disabled={currentPage === 1}
+                  className="p-1 text-[10px] text-blue-500 disabled:opacity-20 mr-1"
+                >
+                  이전
+                </button>
+
+                {/* 페이지 번호 (크기 축소: w-7 h-7) */}
+                {getPageNumbers().map(number => (
+                  <button
+                    key={number}
+                    onClick={() => { setCurrentPage(number); window.scrollTo(0,0); }}
+                    className={`w-7 h-7 rounded text-xs font-medium transition-all ${
+                      currentPage === number 
+                      ? 'bg-blue-600 text-white' 
+                      : 'text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    {number}
+                  </button>
+                ))}
+
+                <button 
+                  onClick={() => { setCurrentPage(prev => Math.min(prev + 1, totalPages)); window.scrollTo(0,0); }}
+                  disabled={currentPage === totalPages}
+                  className="p-1 text-[10px] text-blue-500 disabled:opacity-20 ml-1"
+                >
+                  다음
+                </button>
+                <button 
+                  onClick={() => { setCurrentPage(totalPages); window.scrollTo(0,0); }}
+                  disabled={currentPage === totalPages}
+                  className="p-1 text-[10px] text-gray-400 hover:text-blue-600 disabled:opacity-20"
+                >
+                  마지막
+                </button>
+              </div>
+
+              {/* 건수 표시는 아주 작게 버튼 아래에 배치 */}
+              <div className="text-[10px] text-gray-400">
+                <span className="text-blue-500 font-semibold">{currentItems.length}</span> / {deliveryData.length} 건
+              </div>
+            </div>
+          </div>
+        )}
         </div>
       </div>
+
+      
 
       {/* 상세품목 관리 모달 */}
       {isItemModalOpen && selectedOrderForItems && (

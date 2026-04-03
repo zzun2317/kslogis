@@ -53,7 +53,8 @@ export default function ShopExcelUploadPage() {
       try {
         // 2. XLSX.read에서 type을 'array'로 지정합니다. 
         // 이렇게 하면 라이브러리가 바이너리인지 텍스트인지 스스로 더 잘 판단합니다.
-        const wb = XLSX.read(data, { type: 'array' });
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const jsonData: any[] = XLSX.utils.sheet_to_json(ws);
         
@@ -145,12 +146,24 @@ export default function ShopExcelUploadPage() {
     const orderId = String(row['주문번호'] || '');
     const regDate = getFormattedDate(); // 수집일자
 
+    // 날짜 변환용 헬퍼 함수: Date 객체면 YYYY-MM-DD로, 아니면 문자열로 반환
+    const formatDate = (val: any) => {
+      if (val instanceof Date) {
+        // 한국 시간 기준으로 날짜만 추출 (YYYY-MM-DD)
+        const year = val.getFullYear();
+        const month = String(val.getMonth() + 1).padStart(2, '0');
+        const day = String(val.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+      return String(val || '');
+    };
+
     const rawData = {
-      "ORDER_DATE": String(row['업체지시일'] || ''),
+      "ORDER_DATE": formatDate(row['업체지시일']),
       "IDX": orderId,
       "ORDER_ID": orderId,
       "DPARTNER_ID": String(row['배송사'] || ''),
-      "HOPE_DELV_DATE": String(row['배송예정일'] || ''),
+      "HOPE_DELV_DATE": formatDate(row['배송예정일']),
       "USER_NAME": String(row['주문자'] || ''),
       "USER_TEL": String(row['주문자(연락처)'] || ''),
       "USER_CEL": String(row['주문자(휴대폰)'] || ''),
@@ -226,7 +239,7 @@ export default function ShopExcelUploadPage() {
     return {
       sabang_idx: sabangIdx,
       raw_data: rawData,
-      order_gubun: '에몬스' as const,
+      order_gubun: '사방넷' as const,
       status: 'wait' as const,
       comm_ccode: '009029' as const
     };
