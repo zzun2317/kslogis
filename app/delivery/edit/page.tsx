@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '@/lib/supabase';
 import Script from 'next/script';
 import { useAuth } from '@/hook/useAuth';
+import { XCircle } from "lucide-react";
 
 export default function DeliveryEditTablePage() {
   // 1. 커스텀 훅을 통한 권한 정보 추출
@@ -74,6 +75,7 @@ export default function DeliveryEditTablePage() {
   const [hp, setHp] = useState('');                 
   const [address, setAddress] = useState('');       
   const [driver, setDriver] = useState('');         
+  const [isFilterOpen, setIsFilterOpen] = useState(true); // 조회조건 숨김. 기본:보임
 
   const [deliveryData, setDeliveryData] = useState<any[]>([]);
   const [originalData, setOriginalData] = useState<any[]>([]);
@@ -738,6 +740,45 @@ export default function DeliveryEditTablePage() {
     }
   };
 
+  // 일괄배송취소처리
+  const handleBatchCancel = async () => {
+    if (selectedRows.length === 0) {
+      alert("취소 처리할 항목을 먼저 선택해 주세요.");
+      return;
+    }
+
+    const confirmCancel = confirm(`선택한 ${selectedRows.length}건을 배송취소 처리하시겠습니까?`);
+    if (!confirmCancel) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("로그인 정보가 없습니다.");
+
+      const { error } = await supabase
+        .from('ks_devcustm')
+        .update({
+          cust_devemail: null,
+          cust_devid: null,
+          cust_devuuid: null,
+          cust_devdatefix: false,
+          cust_devdatefixtz: null,
+          cust_devstatus: '002008', // 배송취소 상태 코드
+          cust_register: user.id,   // 처리한 사원의 UUID
+          cust_registerdate: new Date().toISOString(), // timestamptz 형식
+        })
+        .in('cust_ordno', selectedRows); // 체크된 데이터 대상 일괄 변경
+
+      if (error) throw error;
+
+      alert("성공적으로 취소 처리되었습니다.");
+      setSelectedRows([]); // 선택 해제
+      fetchDeliveryData();   // 목록 새로고침
+    } catch (error) {
+      console.error("배송취소 오류:", error);
+      alert("처리 중 오류가 발생했습니다.");
+    }
+  };
+
   // 표시할 페이지 번호 범위 계산 (현재 페이지 기준 앞뒤로 출력)
   const getPageNumbers = () => {
     const pageNumbers = [];
@@ -902,267 +943,310 @@ export default function DeliveryEditTablePage() {
       <div className="max-w-[1920px] w-full mx-auto flex flex-col h-full min-h-0">
         
         {/* 상단 필터 및 액션 영역 */}
-        <div className="flex flex-wrap items-center justify-between mb-3 gap-3 shrink-0 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-            {/* 배송상태 필터 */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[12px] font-black text-slate-400 uppercase">배송상태</span>
-              <select value={searchStatus} onChange={(e) => setSearchStatus(e.target.value)} className={`${filterInputStyle} border-blue-200 bg-blue-50/30 text-blue-700`}>
-                <option value="전체">전체</option>
-                {statusList.map((st) => (<option key={st.comm_ccode} value={st.comm_ccode}>{st.comm_text1}</option>))}
-              </select>
-            </div>
-
-            {/* 배송구분 필터 */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[12px] font-black text-slate-400 uppercase">배송구분</span>
-              <select value={gubun} onChange={(e) => setGubun(e.target.value)} className={filterInputStyle}>
-                <option value="전체">전체</option>
-                <option value="오프라인">오프라인</option>
-                <option value="온라인">온라인</option>
-              </select>
-            </div>
-
-            {/* [수정] 물류사 조회 조건 (001003 권한 제약 적용) */}
-            <div className="flex items-center gap-1.5 sm:border-l sm:pl-4 border-slate-200">
-              <span className="text-[12px] font-black text-slate-400 uppercase">물류사</span>
-              <select 
-                value={searchDevcenter} 
-                onChange={(e) => setSearchDevcenter(e.target.value)} 
-                disabled={isLocalManager && userCenterList.length === 1} // 관리센터가 1개인 경우 고정
-                className={`${filterInputStyle} ${(isLocalManager && userCenterList.length === 1) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
-              >
-                {/* 001003이고 센터가 1개면 '전체' 옵션을 아예 제거 */}
-                {(!isLocalManager || userCenterList.length > 1) && <option value="전체">전체</option>}
-                {filteredDevcenterList.map((dc) => (
-                  <option key={dc.comm_ccode} value={dc.comm_ccode}>{dc.comm_text1}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* 배송일자 필터 (From-To) - 다른 조건들과 스타일 통일 */}
-            {/* 날짜 조회 기준 토글 버튼 */}
-            <div className="flex items-center gap-1 mr-1 bg-slate-50 px-2 py-1.5 rounded-full border border-slate-200 shadow-sm">
-              <span className={`text-[11px] font-black transition-colors ${dateSearchType === 'DEV' ? 'text-blue-600' : 'text-slate-400'}`}>배송일</span>
-              
-              <button 
-                onClick={() => setDateSearchType(prev => prev === 'DEV' ? 'ORD' : 'DEV')}
-                className="relative w-10 h-5 bg-slate-200 rounded-full transition-all duration-300 focus:outline-none hover:bg-slate-300"
-              >
-                {/* 스위치 핸들 (O 표시 부분) */}
-                <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full shadow-md transition-transform duration-300 flex items-center justify-center
-                  ${dateSearchType === 'ORD' ? 'translate-x-5 !bg-blue-600' : 'bg-slate-500'}`}
-                >
-                  <div className="w-1.5 h-1.5 rounded-full bg-white opacity-50"></div>
-                </div>
-              </button>
-              
-              <span className={`text-[11px] font-black transition-colors ${dateSearchType === 'ORD' ? 'text-blue-600' : 'text-slate-400'}`}>수주일</span>
-            </div>
-            <div className="flex items-center gap-1 relative">
-              <div 
-                onClick={() => setIsCalendarOpen(!isCalendarOpen)}
-                /* filterInputStyle을 활용하거나 기존 스타일에서 가로 길이를 맞춤 */
-                className={`${inputStyle} w-[195px] px-2 flex items-center justify-between cursor-pointer hover:border-blue-600 group shadow-sm bg-white`}
-              >
-                <span className="text-[12px] font-bold text-slate-700 tracking-tighter">
-                  {startDate.replace(/-/g, '.')} ~ {endDate.replace(/-/g, '.')}
+        <div className="flex flex-wrap items-center justify-between mb-1 gap-3 shrink-0 bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+          {/* A. 필터 헤더 (항상 보이는 부분: 접기/펴기 버튼) */}
+          <div 
+            className="flex items-center justify-between px-4 py-1.5 bg-slate-50/50 border-b border-slate-100 cursor-pointer hover:bg-slate-50 transition-colors"
+            onClick={() => setIsFilterOpen(!isFilterOpen)}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-black text-slate-500 uppercase tracking-wider">조회 조건 설정</span>
+              {!isFilterOpen && (
+                <span className="text-[10px] text-blue-500 font-bold bg-blue-50 px-2 py-0.5 rounded-full transition-all animate-in fade-in">
+                  {searchStatus} | {startDate.replace(/-/g, '.')} ~ {endDate.replace(/-/g, '.')} | {deliveryData.length}건
                 </span>
-                <span className="text-[10px] text-slate-400 group-hover:text-blue-500 ml-1">▼</span>
-              </div>
-
-              {/* 기간 선택 모달 (위치는 absolute로 유지) */}
-              {isCalendarOpen && (
-                <div className="absolute top-[45px] left-0 z-[100] bg-white p-5 rounded-2xl shadow-2xl border-2 border-slate-200 w-[320px]">
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-center justify-between border-b pb-2">
-                      <span className="text-sm font-black text-slate-900">조회 기간 설정</span>
-                      <button onClick={() => setIsCalendarOpen(false)} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase">시작일</label>
-                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputBaseStyle} w-full text-xs`} />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase">종료일</label>
-                        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={`${inputBaseStyle} w-full text-xs`} />
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => {
-                        if (startDate > endDate) {
-                          alert('시작일이 종료일보다 늦을 수 없습니다.');
-                          return;
-                        }
-                        setIsCalendarOpen(false);
-                        fetchDeliveryData(); 
-                      }}
-                      className="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[13px] hover:bg-blue-600 transition-all shadow-md"
-                    >
-                      선택 기간으로 데이터 조회하기
-                    </button>
-                  </div>
-                </div>
               )}
             </div>
-            {/* ⚡ 날짜 선택 버튼 그룹 */}
-            <div className="flex gap-1 bg-slate-200 p-1 rounded-lg">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-400 font-bold">{isFilterOpen ? '클릭하여 접기' : '클릭하여 펼치기'}</span>
               <button 
-                type="button"
-                onClick={() => setDateRange('today')}
-                className="px-3 h-[32px] text-[11px] font-black bg-white text-slate-700 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                className="text-slate-400 hover:text-slate-600 transition-transform duration-300" 
+                style={{ transform: isFilterOpen ? 'rotate(0deg)' : 'rotate(180deg)' }}
               >
-                오늘
-              </button>
-              <button 
-                type="button"
-                onClick={() => setDateRange('yesterday')}
-                className="px-3 h-[32px] text-[11px] font-black bg-white text-slate-700 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-              >
-                어제
-              </button>
-              <button 
-                type="button"
-                onClick={() => setDateRange('month')}
-                className="px-3 h-[32px] text-[11px] font-black bg-white text-slate-700 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-              >
-                1개월
-              </button>
-            </div>
-
-            {/* 고객명 필터 */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[12px] font-black text-slate-400 uppercase">고객명</span>
-              <input 
-                type="text" 
-                value={custName} 
-                onChange={(e) => setCustName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && fetchDeliveryData()}
-                className={`${filterInputStyle} w-24`} 
-              />
-            </div>            
-
-            {/* 연락처 필터 */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[12px] font-black text-slate-400 uppercase">핸드폰번호</span>
-              <input 
-                type="text" 
-                value={hp} 
-                onChange={(e) => setHp(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && fetchDeliveryData()}
-                className={`${filterInputStyle} w-24`} 
-              />
-            </div>
-
-            {/* 배송주소 필터 */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[12px] font-black text-slate-400 uppercase">배송주소</span>
-              <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} onKeyDown={handleKeyDown} className={`${filterInputStyle} w-24`} />
-            </div>
-
-            {/* 배송기사 필터 추가 */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[12px] font-black text-slate-400 uppercase">배송기사</span>
-              <input 
-                type="text" 
-                value={driver} 
-                onChange={(e) => setDriver(e.target.value)} 
-                onKeyDown={handleKeyDown} 
-                className={`${filterInputStyle} w-24 border-blue-100 focus:border-blue-500`} 
-              />
-            </div>
-
-            {/* 기사 일괄 배정 영역 */}
-            <div className="flex flex-wrap items-center gap-1.5 sm:border-l sm:pl-4 border-slate-200">
-              <span className="text-[12px] font-black text-blue-500 uppercase">변경기사</span>
-              <select 
-                value={selectedTargetDriver} 
-                onChange={(e) => setSelectedTargetDriver(e.target.value)} 
-                disabled={!canEdit}
-                className={`${filterInputStyle} border-blue-200 bg-blue-50/50 text-blue-700 min-w-[120px] disabled:opacity-50`}
-              >
-                <option value="">기사 선택</option>
-                {filteredDriverList.map((d) => (<option key={d.driver_id} value={d.driver_id}>{d.driver_name}[{d.driver_carno}]</option>))}
-              </select>
-              <button 
-                onClick={handleBulkDriverUpdate} 
-                disabled={loading || selectedRows.length === 0 || !selectedTargetDriver || !canEdit} 
-                className="bg-blue-600 text-white px-3 py-1.5 rounded-lg font-black text-xs hover:bg-blue-700 disabled:opacity-30 shadow-md transition-all active:scale-95"
-              >
-                일괄적용
-              </button>
-
-              {/* 온라인 기사 자동 지정 버튼 추가 */}
-              {userCenterList?.map(String).includes('004001') && (
-                <button 
-                  onClick={handleAutoAssignOnlineDriver} 
-                  disabled={loading || deliveryData.length === 0}
-                  className="bg-blue-50 text-blue-700 border border-blue-200 px-4 py-2 rounded-xl font-black text-xs hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50 shadow-sm flex items-center gap-2"
-                >
-                  <span className="text-blue-500">⚡</span> 온라인 배송기사 지정
-                </button>
-              )}
-
-              {/* 항목 설정 버튼 */}
-              <button
-                onClick={() => setIsConfigModalOpen(true)}
-                className="flex items-center gap-1 px-4 h-[40px] bg-white border border-slate-300 text-slate-700 rounded-xl font-black text-sm hover:bg-slate-50 transition-all shadow-sm"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                항목설정
-              </button>
-
-              {/* 조회 건수 드롭다운 */}
-              <select 
-                value={itemsPerPage}
-                onChange={(e) => {
-                  setItemsPerPage(Number(e.target.value));
-                  setCurrentPage(1); // 건수 변경 시 첫 페이지로 이동
-                }}
-                className="h-9 px-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-gray-700"
-              >
-                {[100, 300, 500, 700].map(size => (
-                  <option key={size} value={size}>{size}건씩 보기</option>
-                ))}
-              </select>
-
-              {/* 조회 버튼 */}
-              <button onClick={fetchDeliveryData} disabled={loading} className="bg-slate-900 text-white px-5 py-2 rounded-xl font-black text-xs hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg">
-                {loading ? '조회 중...' : '조회하기'}
-                {!loading && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px]">{deliveryData.length}</span>}
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
               </button>
             </div>
           </div>
 
-          {/* 1000건 이상조회시 확인 메시지 */}
-          {isDataLimitReached && (
-            <div className="px-6 py-2">
-              <div className="flex items-center justify-between bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-xl shadow-sm animate-pulse">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl">⚠️</span>
-                  <div>
-                    <p className="text-amber-800 font-black text-[13px]">
-                      조회된 데이터가 많아 표시되지 않은 데이터가 있을 수 있습니다.
-                    </p>
-                    <p className="text-amber-700 text-[11px]">
-                      정확한 조회를 위해 기간을 줄이거나 상세 조건을 입력해 주세요. (최대 1,000건 출력)
-                    </p>
+          {/* B. 필터 컨텐츠 (열고 닫히는 부분) */}
+          <div className={`transition-all duration-300 ease-in-out ${isFilterOpen ? 'max-h-[500px] opacity-100 px-4 py-2' : 'max-h-0 opacity-0 overflow-hidden'}`}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                
+
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+                  {/* 배송상태 필터 */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[12px] font-black text-slate-400 uppercase">배송상태</span>
+                    <select value={searchStatus} onChange={(e) => setSearchStatus(e.target.value)} className={`${filterInputStyle} border-blue-200 bg-blue-50/30 text-blue-700`}>
+                      <option value="전체">전체</option>
+                      {statusList.map((st) => (<option key={st.comm_ccode} value={st.comm_ccode}>{st.comm_text1}</option>))}
+                    </select>
+                  </div>
+
+                  {/* ★ [배송취소처리] 버튼: 배송상태 드롭다운 오른쪽 배치 ★ */}
+                  {isMaster && (
+                    <button
+                      onClick={handleBatchCancel}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-md hover:bg-red-100 transition-colors font-medium shadow-sm ml-1 text-sm"
+                    >
+                      <XCircle size={16} className="text-red-400" /> 
+                      배송취소처리
+                    </button>
+                  )}
+
+                  {/* 배송구분 필터 */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[12px] font-black text-slate-400 uppercase">배송구분</span>
+                    <select value={gubun} onChange={(e) => setGubun(e.target.value)} className={filterInputStyle}>
+                      <option value="전체">전체</option>
+                      <option value="오프라인">오프라인</option>
+                      <option value="온라인">온라인</option>
+                    </select>
+                  </div>
+
+                  {/* [수정] 물류사 조회 조건 (001003 권한 제약 적용) */}
+                  <div className="flex items-center gap-1 sm:border-l sm:pl-4 border-slate-200">
+                    <span className="text-[12px] font-black text-slate-400 uppercase">물류사</span>
+                    <select 
+                      value={searchDevcenter} 
+                      onChange={(e) => setSearchDevcenter(e.target.value)} 
+                      disabled={isLocalManager && userCenterList.length === 1} // 관리센터가 1개인 경우 고정
+                      className={`${filterInputStyle} ${(isLocalManager && userCenterList.length === 1) ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
+                    >
+                      {/* 001003이고 센터가 1개면 '전체' 옵션을 아예 제거 */}
+                      {(!isLocalManager || userCenterList.length > 1) && <option value="전체">전체</option>}
+                      {filteredDevcenterList.map((dc) => (
+                        <option key={dc.comm_ccode} value={dc.comm_ccode}>{dc.comm_text1}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 배송일자 필터 (From-To) - 다른 조건들과 스타일 통일 */}
+                  {/* 날짜 조회 기준 토글 버튼 */}
+                  <div className="flex items-center gap-1 mr-1 bg-slate-50 px-2 py-1.5 rounded-full border border-slate-200 shadow-sm">
+                    <span className={`text-[11px] font-black transition-colors ${dateSearchType === 'DEV' ? 'text-blue-600' : 'text-slate-400'}`}>배송일</span>
+                    
+                    <button 
+                      onClick={() => setDateSearchType(prev => prev === 'DEV' ? 'ORD' : 'DEV')}
+                      className="relative w-10 h-5 bg-slate-200 rounded-full transition-all duration-300 focus:outline-none hover:bg-slate-300"
+                    >
+                      {/* 스위치 핸들 (O 표시 부분) */}
+                      <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full shadow-md transition-transform duration-300 flex items-center justify-center
+                        ${dateSearchType === 'ORD' ? 'translate-x-5 !bg-blue-600' : 'bg-slate-500'}`}
+                      >
+                        <div className="w-1.5 h-1.5 rounded-full bg-white opacity-50"></div>
+                      </div>
+                    </button>
+                    
+                    <span className={`text-[11px] font-black transition-colors ${dateSearchType === 'ORD' ? 'text-blue-600' : 'text-slate-400'}`}>수주일</span>
+                  </div>
+                  <div className="flex items-center gap-1 relative">
+                    <div 
+                      onClick={() => setIsCalendarOpen(!isCalendarOpen)}
+                      /* filterInputStyle을 활용하거나 기존 스타일에서 가로 길이를 맞춤 */
+                      className={`${inputStyle} w-[195px] px-2 flex items-center justify-between cursor-pointer hover:border-blue-600 group shadow-sm bg-white`}
+                    >
+                      <span className="text-[12px] font-bold text-slate-700 tracking-tighter">
+                        {startDate.replace(/-/g, '.')} ~ {endDate.replace(/-/g, '.')}
+                      </span>
+                      <span className="text-[10px] text-slate-400 group-hover:text-blue-500 ml-1">▼</span>
+                    </div>
+
+                    {/* 기간 선택 모달 (위치는 absolute로 유지) */}
+                    {isCalendarOpen && (
+                      <div className="absolute top-[45px] left-0 z-[100] bg-white p-5 rounded-2xl shadow-2xl border-2 border-slate-200 w-[320px]">
+                        <div className="flex flex-col gap-4">
+                          <div className="flex items-center justify-between border-b pb-2">
+                            <span className="text-sm font-black text-slate-900">조회 기간 설정</span>
+                            <button onClick={() => setIsCalendarOpen(false)} className="text-slate-400 hover:text-slate-600 text-lg">×</button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[10px] font-black text-slate-400 uppercase">시작일</label>
+                              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputBaseStyle} w-full text-xs`} />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[10px] font-black text-slate-400 uppercase">종료일</label>
+                              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={`${inputBaseStyle} w-full text-xs`} />
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => {
+                              if (startDate > endDate) {
+                                alert('시작일이 종료일보다 늦을 수 없습니다.');
+                                return;
+                              }
+                              setIsCalendarOpen(false);
+                              fetchDeliveryData(); 
+                            }}
+                            className="w-full py-3 bg-slate-900 text-white rounded-xl font-black text-[13px] hover:bg-blue-600 transition-all shadow-md"
+                          >
+                            선택 기간으로 데이터 조회하기
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {/* ⚡ 날짜 선택 버튼 그룹 */}
+                  <div className="flex gap-1 bg-slate-200 p-1 rounded-lg">
+                    <button 
+                      type="button"
+                      onClick={() => setDateRange('today')}
+                      className="px-3 h-[32px] text-[11px] font-black bg-white text-slate-700 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                    >
+                      오늘
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setDateRange('yesterday')}
+                      className="px-3 h-[32px] text-[11px] font-black bg-white text-slate-700 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                    >
+                      어제
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setDateRange('month')}
+                      className="px-3 h-[32px] text-[11px] font-black bg-white text-slate-700 rounded-md hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                    >
+                      1개월
+                    </button>
+                  </div>
+
+                  {/* 고객명 필터 */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[12px] font-black text-slate-400 uppercase">고객명</span>
+                    <input 
+                      type="text" 
+                      value={custName} 
+                      onChange={(e) => setCustName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && fetchDeliveryData()}
+                      className={`${filterInputStyle} w-24`} 
+                    />
+                  </div>            
+
+                  {/* 연락처 필터 */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[12px] font-black text-slate-400 uppercase">핸드폰번호</span>
+                    <input 
+                      type="text" 
+                      value={hp} 
+                      onChange={(e) => setHp(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && fetchDeliveryData()}
+                      className={`${filterInputStyle} w-24`} 
+                    />
+                  </div>
+
+                  {/* 배송주소 필터 */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[12px] font-black text-slate-400 uppercase">배송주소</span>
+                    <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} onKeyDown={handleKeyDown} className={`${filterInputStyle} w-24`} />
+                  </div>
+
+                  {/* 배송기사 필터 추가 */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[12px] font-black text-slate-400 uppercase">배송기사</span>
+                    <input 
+                      type="text" 
+                      value={driver} 
+                      onChange={(e) => setDriver(e.target.value)} 
+                      onKeyDown={handleKeyDown} 
+                      className={`${filterInputStyle} w-24 border-blue-100 focus:border-blue-500`} 
+                    />
+                  </div>
+
+                  {/* 기사 일괄 배정 영역 */}
+                  <div className="flex flex-wrap items-center gap-1.5 sm:border-l sm:pl-4 border-slate-200">
+                    <span className="text-[12px] font-black text-blue-500 uppercase">변경기사</span>
+                    <select 
+                      value={selectedTargetDriver} 
+                      onChange={(e) => setSelectedTargetDriver(e.target.value)} 
+                      disabled={!canEdit}
+                      className={`${filterInputStyle} border-blue-200 bg-blue-50/50 text-blue-700 min-w-[120px] disabled:opacity-50`}
+                    >
+                      <option value="">기사 선택</option>
+                      {filteredDriverList.map((d) => (<option key={d.driver_id} value={d.driver_id}>{d.driver_name}[{d.driver_carno}]</option>))}
+                    </select>
+                    <button 
+                      onClick={handleBulkDriverUpdate} 
+                      disabled={loading || selectedRows.length === 0 || !selectedTargetDriver || !canEdit} 
+                      className="bg-blue-600 text-white px-3 py-1.5 rounded-lg font-black text-xs hover:bg-blue-700 disabled:opacity-30 shadow-md transition-all active:scale-95"
+                    >
+                      일괄적용
+                    </button>
+
+                    {/* 온라인 기사 자동 지정 버튼 추가 */}
+                    {userCenterList?.map(String).includes('004001') && (
+                      <button 
+                        onClick={handleAutoAssignOnlineDriver} 
+                        disabled={loading || deliveryData.length === 0}
+                        className="bg-blue-50 text-blue-700 border border-blue-200 px-4 py-2 rounded-xl font-black text-xs hover:bg-blue-600 hover:text-white transition-all disabled:opacity-50 shadow-sm flex items-center gap-2"
+                      >
+                        <span className="text-blue-500">⚡</span> 온라인 배송기사 지정
+                      </button>
+                    )}
+
+                    {/* 항목 설정 버튼 */}
+                    <button
+                      onClick={() => setIsConfigModalOpen(true)}
+                      className="flex items-center gap-1 px-4 h-[40px] bg-white border border-slate-300 text-slate-700 rounded-xl font-black text-sm hover:bg-slate-50 transition-all shadow-sm"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      항목설정
+                    </button>
+
+                    {/* 조회 건수 드롭다운 */}
+                    <select 
+                      value={itemsPerPage}
+                      onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1); // 건수 변경 시 첫 페이지로 이동
+                      }}
+                      className="h-9 px-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium text-gray-700"
+                    >
+                      {[100, 300, 500, 700].map(size => (
+                        <option key={size} value={size}>{size}건씩 보기</option>
+                      ))}
+                    </select>
+
+                    {/* 조회 버튼 */}
+                    <button onClick={fetchDeliveryData} disabled={loading} className="bg-slate-900 text-white px-5 py-2 rounded-xl font-black text-xs hover:bg-blue-600 transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg">
+                      {loading ? '조회 중...' : '조회하기'}
+                      {!loading && <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px]">{deliveryData.length}</span>}
+                    </button>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setIsDataLimitReached(false)} 
-                  className="text-amber-400 hover:text-amber-600 px-2 font-bold"
-                >
-                  ✕
-                </button>
+
+                {/* 1000건 이상조회시 확인 메시지 */}
+                {isDataLimitReached && (
+                  <div className="px-6 py-2">
+                    <div className="flex items-center justify-between bg-amber-50 border-l-4 border-amber-400 p-3 rounded-r-xl shadow-sm animate-pulse">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">⚠️</span>
+                        <div>
+                          <p className="text-amber-800 font-black text-[13px]">
+                            조회된 데이터가 많아 표시되지 않은 데이터가 있을 수 있습니다.
+                          </p>
+                          <p className="text-amber-700 text-[11px]">
+                            정확한 조회를 위해 기간을 줄이거나 상세 조건을 입력해 주세요. (최대 1,000건 출력)
+                          </p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => setIsDataLimitReached(false)} 
+                        className="text-amber-400 hover:text-amber-600 px-2 font-bold"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          )}
-
+          </div>
         </div>
 
         {/* 상단 가로 스크롤 동기화용 더미 바 */}
@@ -1181,6 +1265,7 @@ export default function DeliveryEditTablePage() {
             ref={mainScrollRef} 
             onScroll={onMainScroll}
             className="force-show-scroll flex-1 custom-scrollbar relative"
+            style={{ overflowY: 'auto' }}
           >
             <table className="border-collapse border-spacing-0" style={{ tableLayout: 'fixed', width: `${totalTableWidth}px` }}>
               <thead>
