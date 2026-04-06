@@ -367,8 +367,7 @@ export default function DeliveryEditTablePage() {
       setLoading(false);
     }
   }, [dateSearchType, startDate, endDate, reqDate, gubun, searchDevcenter, searchStatus, custName, hp, address, driver, user, userCenterList]);
-  // ↑ useCallback의 중괄호와 대괄호가 여기서 정확히 닫혀야 합니다.
-
+  
   // --- 자동 조회를 위한 useEffect (함수 밖으로 완전히 분리) ---
   useEffect(() => {
   // 현재 어떤 값이 들어와 있는지 상세 출력

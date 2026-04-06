@@ -111,7 +111,7 @@ export default function SabangnetVerifyPage() {
 				p_erp_outsideboard: item.erp_outsideboard,
 				p_erp_footboard: item.erp_footboard,
 				p_erp_gift: item.erp_gift,
-				p_erp_etc: item.erp_item
+				p_erp_etc: item.erp_etc
 			});
 
 			if (error) throw error;
