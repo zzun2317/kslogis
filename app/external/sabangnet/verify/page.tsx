@@ -80,10 +80,10 @@ export default function SabangnetVerifyPage() {
 
 	// 3. ERP 세트명 실시간 수정 핸들러 (독립적으로 선언)
   const handleFieldChange = (tempSeq: number, field: string, value: string) => {
-  setOrders(prev => prev.map(item => 
-    item.temp_seq === tempSeq ? { ...item, [field]: value } : item
-  ));
-};
+		setOrders(prev => prev.map(item => 
+			item.temp_seq === tempSeq ? { ...item, [field]: value } : item
+		));
+	};
 
 	// 특정 행의 데이터가 변경되었는지 확인
 	const isRowChanged = (item: any) => {
@@ -139,6 +139,10 @@ export default function SabangnetVerifyPage() {
 		}
 	};
 
+	// erp양식으로 등록시 처리 내용
+	// 수량은 1개씩 입력하고, 2개이상인 경우 동일한 주문건을 새로운 행으로 추가한다
+	// 사은품이 있는경우는 동일한 주문건으로 추가로 생성한다
+	// 수량이2개, 사은품이 있는경우 > 화면에서는 한 행으로 조회되나, 엑셀은 3개 행으로 분리된다.
 	const handleExcelDownloadERP = (format: 'xls' | 'xlsx') => {
 		if (filteredOrders.length === 0) {
 			alert("다운로드할 데이터가 없습니다.");
@@ -146,47 +150,77 @@ export default function SabangnetVerifyPage() {
 		}
 
 		try {
+			// 1. 헤더 정의 (1행: 영문 키(erp컬럼명), 2행: 명칭)
+			const headerRow1 = [
+				'BizUnitName', 'MmbOrderDate', 'CustName', 'DVPlaceName', 'Dummy13', 
+				'ItemName', 'UnitName', 'IsInclusedVAT', 'Price', 'Qty', 'CurAmt', 
+				'WHName', 'Remark', 'CarryingCost', 'CarryingVat', 'InstallCost', 
+				'InstallVat', 'Dummy6', 'Dummy7', 'Dummy8', 'Dummy9', 'Dummy10', 
+				'Dummy11', 'DvReqDate', 'ItemNo'
+			];
+
+			const headerRow2 = [
+				'사업부문', '주문일자', '거래처', '납품처', '사은품여부', 
+				'품목', '단위', '부가세포함여부', '단가', '수량', '금액', 
+				'창고', '비고', '운송비', '운송비부가세', '시공비', 
+				'시공비부가세', '매체', '주문번호', '주문인', '주문인연락처', 
+				'통화내용', '사방넷주문번호', '납기일', '상품번호'
+			];
+
 			// 1. ERP 양식에 맞춘 데이터 매핑
-			const excelData = filteredOrders.map((item) => {
+			const dataRows = filteredOrders.flatMap((item) => {
+				const rows = [];
 				const unitPrice = Number(item.pay_cost) || 0; // 단가 (필요시 적절한 필드로 변경)
-				const quantity = Number(item.order_count) || 1; // 수량
+				const quantity = Number(item.sale_cnt) || 1; // 수량
 				// 특수문자(/, -, 공백 등)를 모두 제거하고 숫자만 추출
 				const rawDate = item.order_date || '';
 				const cleanDate = rawDate.replace(/[^0-9]/g, ''); // 숫자 외의 모든 문자 제거
 				const finalOrderDate = cleanDate.slice(0, 8);
 
-				return {
-					'사업부문': '금성침대',
-					'주문일자': finalOrderDate, // YYYYMMDD
-					'거래처': item.mall_id || '', 
-					'납품처': item.receive_info || '',
-					'품목': item.erp_set_name || '', // ERP세트품명 매핑
-					'단위': 'EA',
-					'부가세포함': '1',
-					'단가': unitPrice,
-					'수량': quantity,
-					'금액': unitPrice * quantity,
-					'창고': '', // 필요한 경우 고정값 입력 가능
-					'비고': item.delv_msg1 || '',
-					'운송비': 0,
-					'운송비부가세': 0,
-					'시공비': 0,
-					'시공비부가세': 0,
-					'매체': item.order_gubun === '사방넷' ? '인터넷' : '방송',
-					'주문번호': item.order_id || '',
-					'주문인': item.user_name || '',
-					'주문인연락처': item.user_cel || '',
-					'통화내용': '',
-					'사방넷주문번호': item.idx || '',
-					'납기일': '',
-					'상품번호': item.mall_product_id || '' // 쇼핑몰상품코드
-				};
+				// 공통 데이터 생성 헬퍼
+				const baseRow = (itemName: string, qty: number, price: number, isGift: boolean) => [
+					'금성침대',              // BizUnitNmae
+					finalOrderDate,         // MmbOrderDate
+					item.mall_id || '',     // CustNmae
+					item.receive_info || '',// DVPlaceName
+					'0',     								// Dummy13 (사은품 '0')
+					itemName,               // ItemName
+					'EA',                   // UnitName
+					isGift ? '0' : '1',     // IsInclusedVAT
+					price,                  // Price
+					qty,                    // Qty
+					price * qty,            // CurAmt
+					item.dpartner_id || '', // WHName
+					item.delv_msg1 || '',   // Remark
+					0, 0, 0, 0,             // 운송비/시공비
+					item.order_gubun === '사방넷' ? '인터넷' : '방송', // Dummy6
+					item.order_id || '',    // Dummy7
+					item.user_name || '',   // Dummy8
+					item.user_cel || '',    // Dummy9
+					'',                     // Dummy10
+					item.idx || '',         // Dummy11
+					item.hope_delv_date,    // DvReqDate
+					item.mall_product_id || '' // ItemNo
+				];
+
+				// A. 수량만큼 행 분리 (1개씩 등록)
+				for (let i = 0; i < quantity; i++) {
+					rows.push(baseRow(item.erp_set_name || '', 1, unitPrice, false));
+				}
+
+				// B. 사은품이 있는 경우 (erp_gift 컬럼 데이터 확인)
+				if (item.erp_gift && item.erp_gift.trim() !== '') {
+					// 사은품은 단가 0원으로 1개 행 추가
+					rows.push(baseRow(item.erp_gift, 1, 0, true));
+				}
+
+				return rows;
 			});
 
 			// 2. 워크시트 및 워크북 생성
-			const worksheet = XLSX.utils.json_to_sheet(excelData);
+			const worksheet = XLSX.utils.aoa_to_sheet([headerRow1, headerRow2, ...dataRows]);
 			const workbook = XLSX.utils.book_new();
-			XLSX.utils.book_append_sheet(workbook, worksheet, "ERP_UPLOAD");
+			XLSX.utils.book_append_sheet(workbook, worksheet, "세트주문정보"); //* erp 세트주문업로드 엑셀시트명 고정
 
 			// 3. 파일 생성 및 다운로드 (확장자 선택 적용)
 			const fileName = `ERP_주문수집_${searchDate}.${format}`;
@@ -292,6 +326,7 @@ export default function SabangnetVerifyPage() {
 									<tr>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">주문번호(ID)</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">주문일자</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">납기일</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[150px]">거래처(매체)</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[120px]">주문인</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[300px]">납품처 (수취인/연락처/주소)</th>
@@ -333,6 +368,12 @@ export default function SabangnetVerifyPage() {
 															<span className="text-[11px] text-slate-400 mt-0.5">
 																수집: {item.reg_date ? `${item.reg_date.substring(8,10)}:${item.reg_date.substring(10,12)}` : '-'}
 															</span>
+														</div>
+													</td>
+													{/* 납기일 */}
+													<td className="px-4 py-3 border-r border-slate-100 text-center">
+														<div className="flex flex-col items-center">
+															<span className="text-slate-700 font-medium">{item.hope_delv_date}</span>
 														</div>
 													</td>
 													<td className="px-4 py-3 text-slate-700 border-r border-slate-100 whitespace-nowrap">

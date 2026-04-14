@@ -69,7 +69,7 @@ export default function ExcelUploadPage() {
 
   const REQUIRED_COLUMNS = [
     '출하의뢰번호', '상차(요청)일', '하차(배송)일', 
-    '품번', '요청수량', '우편번호', '주소1', '휴대전화번호'
+    '품번', '요청수량', '우편번호', '주소1', '휴대전화번호', '거래처코드'
   ];
 
   const DATE_COLUMNS = ['상차(요청)일', '하차(배송)일', '수주일'];

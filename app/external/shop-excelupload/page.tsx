@@ -128,7 +128,7 @@ export default function ShopExcelUploadPage() {
       "DELV_MSG": String(row['배송메시지']),
       "DELV_MSG1": String(row['배송메시지']),
       // 고정값
-      "MALL_ID": "SK스토아(방송)",
+      "MALL_ID": "에스케이스토아",
       "MALL_USER_ID": "E207165",
       "REG_DATE": regDate
     };
@@ -184,7 +184,7 @@ export default function ShopExcelUploadPage() {
       "DELV_MSG": String(row['전언'] || ''),
       "DELV_MSG1": String(row['전언'] || ''),
       // 고정값
-      "MALL_ID": "롯데홈쇼핑(방송)",
+      "MALL_ID": "우리홈쇼핑(인터넷)",
       "MALL_USER_ID": "2539",
       "REG_DATE": regDate
     };
