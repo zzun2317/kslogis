@@ -18,16 +18,19 @@ export async function POST(req: Request) {
     // 1. 공통코드 '009' 데이터 미리 가져오기 (매핑용)
     const { data: commonCodes } = await supabase
       .from('ks_common')
-      .select('comm_ccode, comm_text3')
+      .select('comm_ccode, comm_text2')
       .eq('comm_mcode', '009');
 
     // 2. 사방넷 데이터와 공통코드 매핑 및 데이터 가공
     const insertData = orders.map((order: any) => {
-			const mallUserId = order.MALL_USER_ID ? String(order.MALL_USER_ID).trim() : '';
+			// const mallUserId = order.MALL_USER_ID ? String(order.MALL_USER_ID).trim() : '';
+      const acntregssrno = order.ACNT_REGS_SRNO ? String(order.ACNT_REGS_SRNO).trim() : '';
       // MALL_USER_ID와 comm_text3 매칭 (대소문자 구분 없이 처리하려면 trim/toLowerCase 추천)
       const matched = commonCodes?.find((c) => {
-			const commonText3 = c.comm_text3 ? String(c.comm_text3).trim() : '';
-				return commonText3 === mallUserId;
+			// const commonText3 = c.comm_text3 ? String(c.comm_text3).trim() : '';
+      const commonText2 = c.comm_text2 ? String(c.comm_text2).trim() : '';
+				// return commonText3 === mallUserId;
+        return commonText2 === acntregssrno;
 			});
 
       return {
