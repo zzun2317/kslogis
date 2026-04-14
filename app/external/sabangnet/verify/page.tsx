@@ -13,14 +13,49 @@ export default function SabangnetVerifyPage() {
   const tableContainerRef = useRef<HTMLDivElement>(null);
 	const [tableWidth, setTableWidth] = useState(0);
 	const [searchTerm, setSearchTerm] = useState('');
+	const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' | null }>({
+		key: '',
+		direction: null,
+	});
 	const filteredOrders = useMemo(() => {
-		if (!searchTerm) return orders;
-		return orders.filter(order => 
-			order.order_id?.includes(searchTerm) || 
-			order.receive_name?.includes(searchTerm) ||
-			order.receive_tel?.includes(searchTerm)
+		let result = [...orders];
+		if (searchTerm) {
+			result = result.filter(order => 
+				order.order_id?.includes(searchTerm) || 
+				order.receive_name?.includes(searchTerm) ||
+				order.receive_tel?.includes(searchTerm)
+			);
+		}
+
+		if (sortConfig.key && sortConfig.direction) {
+			result.sort((a, b) => {
+				const aValue = a[sortConfig.key] ?? '';
+				const bValue = b[sortConfig.key] ?? '';
+
+				if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+				if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+				return 0;
+			});
+		}
+		return result;
+	}, [orders, searchTerm, sortConfig]);
+
+	const SortIcon = ({ columnKey, sortConfig }: { columnKey: string, sortConfig: any }) => {
+		if (sortConfig.key !== columnKey) return <span className="text-slate-500 opacity-30 text-[10px]">↕</span>;
+		return (
+			<span className="text-blue-400 text-[10px]">
+				{sortConfig.direction === 'asc' ? '▲' : '▼'}
+			</span>
 		);
-	}, [orders, searchTerm]);
+	};
+
+	const handleSort = (key: string) => {
+		let direction: 'asc' | 'desc' = 'asc';
+		if (sortConfig.key === key && sortConfig.direction === 'asc') {
+			direction = 'desc';
+		}
+		setSortConfig({ key, direction });
+	};
 	
   // 1. 초기 시스템 날짜 설정 (오늘 날짜)
   useEffect(() => {
@@ -139,6 +174,54 @@ export default function SabangnetVerifyPage() {
 		}
 	};
 
+	const handleSaveAll = async () => {
+		// 1. 변경된 데이터만 필터링
+		const changedItems = orders.filter(item => isRowChanged(item));
+
+		if (changedItems.length === 0) {
+			alert("변경사항이 있는 데이터가 없습니다.");
+			return;
+		}
+
+		// 2. 필수값(ERP세트품명) 체크
+		const invalidItems = changedItems.filter(item => !item.erp_set_name);
+		if (invalidItems.length > 0) {
+			alert(`ERP세트품명이 입력되지 않은 건이 ${invalidItems.length}건 있습니다.`);
+			return;
+		}
+
+		if (!confirm(`${changedItems.length}건의 변경사항을 일괄 저장하시겠습니까?`)) return;
+
+		setIsLoading(true);
+		try {
+			// 3. 모든 변경 건에 대해 병렬로 RPC 호출 실행
+			await Promise.all(
+				changedItems.map(item => 
+					supabase.rpc('fn_insert_shopitem_from_sabang', {
+						p_idx: item.idx,
+						p_erp_set_name: item.erp_set_name,
+						p_erp_underboard: item.erp_underboard,
+						p_erp_sideboard: item.erp_sideboard,
+						p_erp_connboard: item.erp_connboard,
+						p_erp_mattress: item.erp_mattress,
+						p_erp_outsideboard: item.erp_outsideboard,
+						p_erp_footboard: item.erp_footboard,
+						p_erp_gift: item.erp_gift,
+						p_erp_etc: item.erp_etc
+					})
+				)
+			);
+
+			alert('모든 변경사항이 성공적으로 저장되었습니다.');
+			await fetchTempOrders(searchDate); // 화면 데이터 갱신
+		} catch (error) {
+			console.error('일괄 저장 중 오류:', error);
+			alert('일괄 저장 처리 중 일부 또는 전체에서 오류가 발생했습니다.');
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
 	// erp양식으로 등록시 처리 내용
 	// 수량은 1개씩 입력하고, 2개이상인 경우 동일한 주문건을 새로운 행으로 추가한다
 	// 사은품이 있는경우는 동일한 주문건으로 추가로 생성한다
@@ -208,10 +291,12 @@ export default function SabangnetVerifyPage() {
 					rows.push(baseRow(item.erp_set_name || '', 1, unitPrice, false));
 				}
 
+				const giftName = item.erp_gift?.trim();
+				const isValidGift = giftName && giftName !== '' && giftName !== '-';
 				// B. 사은품이 있는 경우 (erp_gift 컬럼 데이터 확인)
-				if (item.erp_gift && item.erp_gift.trim() !== '') {
-					// 사은품은 단가 0원으로 1개 행 추가
-					rows.push(baseRow(item.erp_gift, 1, 0, true));
+				if (isValidGift) {
+					// 유효한 사은품 명칭이 있을 때만 단가 0원으로 1개 행 추가
+					rows.push(baseRow(giftName, 1, 0, true));
 				}
 
 				return rows;
@@ -233,6 +318,63 @@ export default function SabangnetVerifyPage() {
 			alert("엑셀 생성 중 오류가 발생했습니다.");
 		}
 	};
+
+	// 화면에 보이는 순서대로 엑셀파일 다운로드
+	const handleExcelDownloadRaw = (format: 'xls' | 'xlsx') => {
+    if (filteredOrders.length === 0) {
+      alert("다운로드할 데이터가 없습니다.");
+      return;
+    }
+
+    try {
+      // 1. 엑셀 헤더 정의 (분리된 컬럼 기준)
+      const headers = [
+        '순번(IDX)', '주문번호', '주문일자', '납기일', '거래처(매체)', 
+        '주문인', '주문인연락처', '거래처명', '수취인', '수취인연락처', 
+        '수취인주소', '수량', '상품ID', '상품명', 'ERP세트품명', 
+        '깔판', '측판', '발통', '매트', '협탁', '후드', '사은품', '기타',
+        '단가', '창고', '비고', '수집구분'
+      ];
+
+      // 2. 데이터 매핑 (한 컬럼 내 두 데이터를 좌우로 분리)
+      const rows = filteredOrders.map(item => [
+        item.idx,                      // 순번
+        item.order_id,                 // 주문번호
+        item.order_date,               // 주문일자
+        item.hope_delv_date,           // 납기일
+        item.mall_id,                  // 거래처(매체)
+        item.user_name,                // 주문인
+        item.user_cel,                 // 주문인연락처
+        item.agent_name,               // 거래처명
+        item.receive_name,             // 수취인
+        item.receive_cel,              // 수취인연락처
+        item.receive_addr,             // 수취인주소
+        Number(item.sale_cnt),         // 수량
+        item.mall_product_id,          // 상품ID
+        item.product_name,             // 상품명
+        item.erp_set_name,             // ERP세트품명
+        item.erp_underboard, item.erp_sideboard, item.erp_connboard,
+        item.erp_mattress, item.erp_outsideboard, item.erp_footboard,
+        item.erp_gift, item.erp_etc,   // 구성품 및 사은품
+        Number(item.pay_cost),         // 단가
+        item.dpartner_id,              // 창고
+        item.delv_msg1,                // 비고
+        item.order_gubun               // 수집구분
+      ]);
+
+      // 3. 엑셀 파일 생성
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "조회내역");
+
+      const fileName = `사방넷_검증내역_${searchDate}.${format}`;
+      XLSX.writeFile(workbook, fileName, { bookType: format });
+
+    } catch (error) {
+      console.error("Excel download error:", error);
+      alert("엑셀 생성 중 오류가 발생했습니다.");
+    }
+  };
 
 	return (
     <div className="flex flex-col h-screen bg-slate-50">
@@ -269,8 +411,36 @@ export default function SabangnetVerifyPage() {
 								</>
 							)}
 						</button>
-						{/* 신규: 엑셀파일 내려받기(ERP) 버튼 추가 */}
+
 						<button
+							onClick={handleSaveAll}
+							disabled={isLoading || orders.filter(item => isRowChanged(item)).length === 0}
+							className="flex items-center gap-2 px-6 h-[45px] bg-blue-600 text-white rounded-xl font-black text-sm hover:bg-blue-700 transition-all shadow-lg active:scale-95 disabled:bg-slate-300 disabled:cursor-not-allowed group"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+								<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+								<polyline points="17 21 17 13 7 13 7 21"></polyline>
+								<polyline points="7 3 7 8 15 8"></polyline>
+							</svg>
+							일괄저장 ({orders.filter(item => isRowChanged(item)).length})
+						</button>
+
+						<button
+							onClick={() => {
+								const choice = confirm("'확인'을 누르면 .xlsx(권장)로, '취소'를 누르면 .xls로 다운로드합니다.");
+								handleExcelDownloadRaw(choice ? 'xlsx' : 'xls');
+							}}
+							disabled={isLoading || filteredOrders.length === 0}
+							className="flex items-center gap-2 px-5 h-[45px] bg-white text-slate-700 border border-slate-300 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+								<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+							</svg>
+							화면내역 다운로드
+						</button>
+
+						{/* 신규: 엑셀파일 내려받기(ERP) 버튼 추가 */}
+						{/* <button
 							onClick={() => {
 								// 확장자 선택 로직
 								const choice = confirm("'확인'을 누르면 .xlsx로, '취소'를 누르면 .xls로 다운로드합니다.");
@@ -295,7 +465,7 @@ export default function SabangnetVerifyPage() {
 								<line x1="12" y1="15" x2="12" y2="3" />
 							</svg>
 							엑셀파일 내려받기(ERP)
-						</button>
+						</button> */}
           </div>
         </div>
       </div>
@@ -329,11 +499,22 @@ export default function SabangnetVerifyPage() {
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">납기일</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[150px]">거래처(매체)</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[120px]">주문인</th>
-										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[300px]">납품처 (수취인/연락처/주소)</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[150px]">거래처</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[150px]">수취인</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[150px]">수취인연락처</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[300px]">수취인주소</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">수량</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[250px]">품목(상품명)</th>
 										<th className="px-3 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap w-[60px] text-center">저장</th>
-										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[250px] decoration-slate-600/90 underline underline-offset-4 decoration-3">ERP세트품명</th>
+										<th 
+											className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[250px] decoration-slate-600/90 underline underline-offset-4 decoration-3 cursor-pointer hover:bg-slate-800"
+											onClick={() => handleSort('erp_set_name')}
+										>
+											<div className="flex items-center justify-center gap-1">
+												ERP세트품명
+												<SortIcon columnKey="erp_set_name" sortConfig={sortConfig} />
+											</div>
+										</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[200px] text-center decoration-slate-600/90 underline underline-offset-4 decoration-3">깔판</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[200px] text-center decoration-slate-600/90 underline underline-offset-4 decoration-3">측판</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[200px] text-center decoration-slate-600/90 underline underline-offset-4 decoration-3">발통</th>
@@ -349,8 +530,10 @@ export default function SabangnetVerifyPage() {
 									</tr>
 								</thead>
 								<tbody className="divide-y divide-slate-200">
-									{orders.length > 0 ? (
-										orders.map((item) => {
+									{/* {orders.length > 0 ? ( */}
+									{filteredOrders.length > 0 ? (
+										filteredOrders.map((item) => {
+										// orders.map((item) => {
 											const isMappingFailed = !item.erp_set_name;
 											const infoInputStyle = "w-full px-2 py-1 text-[12px] text-slate-900 bg-white border border-slate-200 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all font-medium";
 											return (
@@ -383,9 +566,18 @@ export default function SabangnetVerifyPage() {
 														<div className="font-bold">{item.user_name}</div>
 														<div className="text-[11px] text-slate-400">{item.user_cel}</div>
 													</td>
+													<td className="px-4 py-3 text-slate-700 border-r border-slate-100 whitespace-nowrap">
+														{item.agent_name}
+													</td>
+													<td className="px-4 py-3 text-slate-700 border-r border-slate-100 whitespace-nowrap">
+														{item.receive_name}
+													</td>
+													<td className="px-4 py-3 text-slate-700 border-r border-slate-100 whitespace-nowrap">
+														{item.receive_cel}
+													</td>
 													<td className="px-4 py-3 text-slate-700 border-r border-slate-100">
 														<div className="text-[12px] text-slate-700 leading-snug line-clamp-3 whitespace-pre-wrap">
-															{item.receive_info}
+															{item.receive_addr}
 														</div>
 													</td>
 													<td className="px-4 py-3 text-[12px] text-slate-900 font-bold border-r border-slate-100 text-left">
