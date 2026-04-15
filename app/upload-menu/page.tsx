@@ -300,12 +300,11 @@ export default function ExcelUploadPage() {
           }
 
           // 중복 수주번호 체크 및 비고란 업데이트
-          let duplicateMemo = "";
           const isDuplicate = existingOrderSet.has(String(orderNo).trim());
-          if (existingOrderSet.has(orderNo)) {
-            duplicateMemo = "이미 업로드된 수주번호";
-            // 만약 중복을 '에러'로 처리해서 저장을 막고 싶다면 아래 주석 해제
-            newErrors.push({ row: firstRowIndex, column: '수주번호', message: duplicateMemo });
+          if (isDuplicate) {
+            const msg = "이미 업로드된 수주번호";
+            newErrors.push({ row: firstRowIndex, column: '수주번호', message: msg });
+            currentEntryErrors.push(msg);
           }
 
           // 차량 매핑
@@ -356,11 +355,13 @@ export default function ExcelUploadPage() {
               }
             }
             else {
+              const msg = "좌표 미식별";
               newErrors.push({ 
                 row: firstRowIndex, 
                 column: '주소1', 
                 message: '위치 좌표를 찾을 수 없는 주소입니다. 주소를 확인해 주세요.' 
               });
+              currentEntryErrors.push(msg);
             }
           }
 
@@ -382,6 +383,8 @@ export default function ExcelUploadPage() {
             }
           });
 
+          const combinedMessage = currentEntryErrors.join(', ');
+
           // updatedData.forEach((item, idx) => {
           updatedData.forEach((item: any, idx: number) => {
             if (String(item['수주번호']).trim() === String(orderNo).trim()) {
@@ -391,13 +394,12 @@ export default function ExcelUploadPage() {
               updatedData[idx]['우편번호'] = row['우편번호'];
               updatedData[idx].cust_lat = cust_lat;
               updatedData[idx].cust_lng = cust_lng;
+              updatedData[idx]['검증결과'] = combinedMessage;
               if (isDuplicate) {
                 const currentMemo = updatedData[idx]['마스터비고'] || '';
-                if (!currentMemo.includes(duplicateMemo)) {
+                if (!currentMemo.includes("이미 업로드된 수주번호")) {
                   // 기존 비고가 있으면 띄어쓰기 후 추가, 없으면 바로 추가
-                  updatedData[idx]['마스터비고'] = currentMemo 
-                    ? `${currentMemo} (${duplicateMemo})` 
-                    : duplicateMemo;
+                  updatedData[idx]['마스터비고'] = currentMemo ? `${currentMemo} (중복)` : "이미 업로드된 수주번호";
                 }
               }
                 

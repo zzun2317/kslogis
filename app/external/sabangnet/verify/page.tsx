@@ -344,6 +344,7 @@ export default function SabangnetVerifyPage() {
 				'매체', // 매체 order_gubun
 				'상품코드', // 상품ID mall_product_id
 				'상품명', // 상품명 product_name
+				'옵션수집', // sku_value
 				'색상', //  p_sku_value
 				'번호', // ERP세트품명 erp_set_name
 				'깔판', // 깔판 erp_underboard
@@ -393,6 +394,7 @@ export default function SabangnetVerifyPage() {
 				item.order_gubun, // '매체', // 매체 order_gubun
 				item.mall_product_id, // '상품코드', // 상품ID mall_product_id
 				item.product_name, // '상품명', // 상품명 product_name
+				item.sku_value, // 옵션수집 sku_value
 				item.p_sku_value, // '색상', //  p_sku_value
 				item.erp_set_name, // '번호', // ERP세트품명 erp_set_name
 				item.erp_underboard, // '깔판', // 깔판 erp_underboard
