@@ -112,7 +112,7 @@ export default function ExcelUploadPage() {
           });
 
           const columnNames = Object.keys(formattedData[0]);
-          setHeaders(['No.', ...columnNames]);
+          setHeaders(['No.', '검증결과', ...columnNames]);
           setPreviewData(formattedData); 
           setColumnWidths({});
           setErrors([]);
@@ -268,7 +268,7 @@ export default function ExcelUploadPage() {
           // const firstRowIndex = updatedData.findIndex(r => r['수주번호'] === orderNo);
           const firstRowIndex = updatedData.findIndex((r: any) => String(r['수주번호']).trim() === orderNo);
           const row = updatedData[firstRowIndex];
-
+          const currentEntryErrors: string[] = [];
           // 1. 연락처 자동 보정 로직 (휴대전화번호가 없으면 전화번호를 대입)
           // row 객체는 참조값이므로 여기서 수정하면 updatedData에도 반영됩니다.
           const hp1 = String(row['휴대전화번호'] || '').trim();
@@ -282,17 +282,21 @@ export default function ExcelUploadPage() {
           REQUIRED_COLUMNS.forEach(col => {
             const val = row[col]?.toString().trim();
             if (!val) {
+              const msg = `${col} 누락`;
               newErrors.push({ row: firstRowIndex, column: col, message: `${col} 필수!` });
+              currentEntryErrors.push(msg);
             }
           });
 
           // 온라인 배송건 우편번호 확인 : 온라인 주문은 우편번호가 필수입니다. [cite: 123]
           if (row['수주구분'] === '온라인' && !row['우편번호']?.toString().trim()) {
+            const msg = "우편번호 누락(온라인)";
             newErrors.push({ 
               row: firstRowIndex, 
               column: '우편번호', 
-              message: '온라인 주문은 우편번호가 필수입니다.' 
+              message: msg
             });
+            currentEntryErrors.push(msg);
           }
 
           // 중복 수주번호 체크 및 비고란 업데이트

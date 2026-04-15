@@ -405,7 +405,7 @@ export default function SabangnetVerifyPage() {
 				item.order_id, // '주문번호',  // 쇼핑몰주문번호 order_id
 				item.user_name, // '주문인', // 주문인 user_name
 				item.user_cel, // '주문인연락처', // 주문인연락처 user_cel
-				item.sele_cnt, // '수량', // 수량 sele_cnt
+				item.sale_cnt, // '수량', // 수량 sele_cnt
 				item.receive_name,// '수취인', // 수취인 receive_name
 				item.receive_cel, // '수취인연락처1', // 수취인연락처1 receive_cel
 				item.receive_tel, // '수취인연락처2', // 수취인연락처2 receive_tel
