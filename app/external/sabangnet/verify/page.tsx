@@ -328,39 +328,137 @@ export default function SabangnetVerifyPage() {
 
     try {
       // 1. 엑셀 헤더 정의 (분리된 컬럼 기준)
-      const headers = [
-        '순번(IDX)', '주문번호', '주문일자', '납기일', '거래처(매체)', 
-        '주문인', '주문인연락처', '거래처명', '수취인', '수취인연락처', 
-        '수취인주소', '수량', '상품ID', '상품명', 'ERP세트품명', 
-        '깔판', '측판', '발통', '매트', '협탁', '후드', '사은품', '기타',
-        '단가', '창고', '비고', '수집구분'
-      ];
+      // const headers = [
+      //   '순번(IDX)', '주문번호', '주문일자', '납기일', '거래처(매체)', 
+      //   '주문인', '주문인연락처', '거래처명', '수취인', '수취인연락처', 
+      //   '수취인주소', '수량', '상품ID', '상품명', 'ERP세트품명', 
+      //   '깔판', '측판', '발통', '매트', '협탁', '후드', '사은품', '기타',
+      //   '단가', '창고', '비고', '수집구분'
+      // ];
+
+			const headers = [
+				'배송상태',
+				'배송출발',
+				'배송완료',
+				'업체', // 거래처 mall_id
+				'매체', // 매체 order_gubun
+				'상품코드', // 상품ID mall_product_id
+				'상품명', // 상품명 product_name
+				'색상', //  p_sku_value
+				'번호', // ERP세트품명 erp_set_name
+				'깔판', // 깔판 erp_underboard
+				'측판', // 측판 erp_sideboard
+				'발통', // 발통 erp_connboard
+				'매트', // 매트 erp_mattress
+				'협탁', // 협탁 erp_outsideboard
+				'화장대', // 후드 erp_footboard
+				'사은품', // 사은품 erp_gift
+				'주문번호',  // 쇼핑몰주문번호 order_id
+				'주문인', // 주문인 user_name
+				'주문인연락처', // 주문인연락처 user_cel
+				'수량', // 수량 sele_cnt
+				'수취인', // 수취인 receive_name
+				'수취인연락처1', // 수취인연락처1 receive_cel
+				'수취인연락처2', // 수취인연락처2 receive_tel
+				'주소', // 주소 receive_addr
+				'구역', // 
+				'지역', // 창고 dpartner_id
+				'발주일', // 주문수집일 reg_date
+				'지정일',
+				'통화내용',
+				'예정일',
+				'배송일',
+				'반품',
+				'반품일',
+				'취소',
+				'배출일',
+				'배송메시지', // 배송메시지 dev_msg1
+				'현금수령',
+				'공급가', // mall_won_code
+				'매출가',
+				'우편번호', // 우편번호 receive_zipcode
+				'배송비', //
+				'사방넷주문번호', // 사방넷주문번호 sabang_idx
+				'주문수집옵션', // 주문수집옵션 p_product_id
+				'출하지시번호',
+				'가키인',
+				'택배사은품'
+			];
+
+			const rows = filteredOrders.map(item => [
+				'', // '배송상태',
+				'', // '배송출발',
+				'', // '배송완료',
+				item.mall_id, // '업체', // 거래처 mall_id
+				item.order_gubun, // '매체', // 매체 order_gubun
+				item.mall_product_id, // '상품코드', // 상품ID mall_product_id
+				item.product_name, // '상품명', // 상품명 product_name
+				item.p_sku_value, // '색상', //  p_sku_value
+				item.erp_set_name, // '번호', // ERP세트품명 erp_set_name
+				item.erp_underboard, // '깔판', // 깔판 erp_underboard
+				item.erp_sideboard, // '측판', // 측판 erp_sideboard
+				item.erp_connboard, // '발통', // 발통 erp_connboard
+				item.erp_mattress, // '매트', // 매트 erp_mattress
+				item.erp_outsideboard, // '협탁', // 협탁 erp_outsideboard
+				item.erp_footboard, // '화장대', // 후드 erp_footboard
+				item.erp_gift, // '사은품', // 사은품 erp_gift
+				item.order_id, // '주문번호',  // 쇼핑몰주문번호 order_id
+				item.user_name, // '주문인', // 주문인 user_name
+				item.user_cel, // '주문인연락처', // 주문인연락처 user_cel
+				item.sele_cnt, // '수량', // 수량 sele_cnt
+				item.receive_name,// '수취인', // 수취인 receive_name
+				item.receive_cel, // '수취인연락처1', // 수취인연락처1 receive_cel
+				item.receive_tel, // '수취인연락처2', // 수취인연락처2 receive_tel
+				item.receive_addr, // '주소', // 주소 receive_addr
+				'', // '구역', // 
+				item.dpartner_id, // '지역', // 창고 dpartner_id
+				item.reg_date.slice(0, 8), // '발주일', // 주문수집일 reg_date
+				'', // '지정일',
+				'', // '통화내용',
+				'', // '예정일',
+				'', // '배송일',
+				'', // '반품',
+				'', // '반품일',
+				'', // '취소',
+				'', // '배출일',
+				item.delv_msg1, // '배송메시지', // 배송메시지 dev_msg1
+				'', // '현금수령',
+				item.mall_won_code, // '공급가', // mall_won_code
+				item.pay_cost, // '매출가',
+				String(item.receive_zipcode).replace(/-/g, ''), // '우편번호', // 우편번호 receive_zipcode
+				'', // '배송비', //
+				item.idx, // '사방넷주문번호', // 사방넷주문번호 sabang_idx
+				item.p_product_id, // '주문수집옵션', // 주문수집옵션 p_product_id
+				'', // '출하지시번호',
+				'', // '가키인',
+				''// '택배사은품'
+			]);
 
       // 2. 데이터 매핑 (한 컬럼 내 두 데이터를 좌우로 분리)
-      const rows = filteredOrders.map(item => [
-        item.idx,                      // 순번
-        item.order_id,                 // 주문번호
-        item.order_date,               // 주문일자
-        item.hope_delv_date,           // 납기일
-        item.mall_id,                  // 거래처(매체)
-        item.user_name,                // 주문인
-        item.user_cel,                 // 주문인연락처
-        item.agent_name,               // 거래처명
-        item.receive_name,             // 수취인
-        item.receive_cel,              // 수취인연락처
-        item.receive_addr,             // 수취인주소
-        Number(item.sale_cnt),         // 수량
-        item.mall_product_id,          // 상품ID
-        item.product_name,             // 상품명
-        item.erp_set_name,             // ERP세트품명
-        item.erp_underboard, item.erp_sideboard, item.erp_connboard,
-        item.erp_mattress, item.erp_outsideboard, item.erp_footboard,
-        item.erp_gift, item.erp_etc,   // 구성품 및 사은품
-        Number(item.pay_cost),         // 단가
-        item.dpartner_id,              // 창고
-        item.delv_msg1,                // 비고
-        item.order_gubun               // 수집구분
-      ]);
+      // const rows = filteredOrders.map(item => [
+      //   item.idx,                      // 순번
+      //   item.order_id,                 // 주문번호
+      //   item.order_date,               // 주문일자
+      //   item.hope_delv_date,           // 납기일
+      //   item.mall_id,                  // 거래처(매체)
+      //   item.user_name,                // 주문인
+      //   item.user_cel,                 // 주문인연락처
+      //   item.agent_name,               // 거래처명
+      //   item.receive_name,             // 수취인
+      //   item.receive_cel,              // 수취인연락처
+      //   item.receive_addr,             // 수취인주소
+      //   Number(item.sale_cnt),         // 수량
+      //   item.mall_product_id,          // 상품ID
+      //   item.product_name,             // 상품명
+      //   item.erp_set_name,             // ERP세트품명
+      //   item.erp_underboard, item.erp_sideboard, item.erp_connboard,
+      //   item.erp_mattress, item.erp_outsideboard, item.erp_footboard,
+      //   item.erp_gift, item.erp_etc,   // 구성품 및 사은품
+      //   Number(item.pay_cost),         // 단가
+      //   item.dpartner_id,              // 창고
+      //   item.delv_msg1,                // 비고
+      //   item.order_gubun               // 수집구분
+      // ]);
 
       // 3. 엑셀 파일 생성
       const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
