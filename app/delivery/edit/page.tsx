@@ -107,6 +107,7 @@ export default function DeliveryEditTablePage() {
   const currentItems = deliveryData.slice(indexOfFirstItem, indexOfLastItem);
 
   const [showTopBtn, setShowTopBtn] = useState(false);
+  const [editedRows, setEditedRows] = useState<Set<string>>(new Set());
 
   // --- [핵심] 권한별 물류사 필터링 로직 ---
   const filteredDevcenterList = useMemo(() => {
@@ -572,6 +573,7 @@ export default function DeliveryEditTablePage() {
   const handleInputChange = (index: number, field: string, value: string) => {
     if (!canEdit) return; // 수정 권한이 없으면 무시
     const newData = [...deliveryData];
+    const targetId = newData[index].cust_ordno; // 해당 행의 고유 ID 추출
     if (field === 'cust_devstatus') {
       const selectedStatus = statusList.find(s => s.comm_ccode === value);
       newData[index].devstatus_color = selectedStatus?.comm_hex || '#64748b';
@@ -579,6 +581,7 @@ export default function DeliveryEditTablePage() {
     }
     newData[index] = { ...newData[index], [field]: value };
     setDeliveryData(newData);
+    setEditedRows((prev) => new Set(prev).add(targetId));
   };
 
   const checkIfDirty = (index: number) => {
@@ -734,6 +737,12 @@ export default function DeliveryEditTablePage() {
       const newOriginalData = [...originalData];
       newOriginalData[index] = JSON.parse(JSON.stringify(item));
       setOriginalData(newOriginalData);
+
+      setEditedRows((prev) => {
+        const next = new Set(prev);
+        next.delete(item.cust_ordno); // handleInputChange에서 사용한 ID와 동일한 기준(cust_ordno)
+        return next;
+      });
     } catch (err: any) { 
       alert('저장 실패: ' + err.message); 
     }
@@ -1326,24 +1335,25 @@ export default function DeliveryEditTablePage() {
                 {/* {deliveryData.map((item, idx) => { */}
                 {currentItems.map((item, idx) => {
                   // const isDirty = checkIfDirty(idx);
-                  const isDirty = checkIfDirty(item.cust_ordno);
+                  // const isDirty = checkIfDirty(item.cust_ordno);
+                  const isEdited = editedRows.has(item.cust_ordno);
                   const isSelected = selectedRows.includes(item.cust_ordno);
-                  const stickyCellBg = isSelected ? 'bg-blue-50' : isDirty ? 'bg-blue-100' : 'bg-white';
+                  const stickyCellBg = isSelected ? 'bg-blue-50' : isEdited ? 'bg-blue-100' : 'bg-white';
                   const editable = isRowEditable(item); // 행 수정 가능 여부
                   const displayIdx = (currentPage - 1) * itemsPerPage + idx + 1;
 
                   return (
-                    <tr key={item.cust_ordno} className={`transition-colors hover:bg-slate-50 ${isSelected ? 'bg-blue-50' : isDirty ? 'bg-blue-50/50' : 'bg-white'}`}>
+                    <tr key={item.cust_ordno} className={`transition-colors hover:bg-slate-50 ${isSelected ? 'bg-blue-50' : isEdited ? 'bg-blue-50/50' : 'bg-white'}`}>
                       
                       {/* 1. 좌측 고정 영역 (No, 저장, 체크박스) */}
                       <td className={`sticky left-0 z-20 p-2 text-center border-r border-slate-100 ${stickyCellBg}`} style={{ left: stickyLeft.no }}>
-                        <div className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-black ${isDirty ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>{displayIdx}</div>
+                        <div className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-black ${isEdited ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}`}>{displayIdx}</div>
                       </td>
                       <td className={`sticky z-20 p-0 text-center align-middle border-r border-slate-100 ${stickyCellBg}`} style={{ left: stickyLeft.save }}>
                         <button 
                           onClick={() => handleSaveRow(item, idx)} 
                           disabled={!editable}
-                          className={`p-1.5 transition-all ${!canEdit ? 'opacity-20 cursor-default' : isDirty ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-slate-300 hover:text-blue-600'}`}
+                          className={`p-1.5 transition-all ${!canEdit ? 'opacity-20 cursor-default' : isEdited ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-slate-300 hover:text-blue-600'}`}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
                         </button>
