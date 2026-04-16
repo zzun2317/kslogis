@@ -375,7 +375,7 @@ export default function SabangnetVerifyPage() {
 				'배출일',
 				'배송메시지', // 배송메시지 dev_msg1
 				'현금수령',
-				'공급가', // mall_won_code
+				'공급가', // mall_won_cost
 				'매출가',
 				'우편번호', // 우편번호 receive_zipcode
 				'배송비', //
@@ -425,7 +425,7 @@ export default function SabangnetVerifyPage() {
 				'', // '배출일',
 				item.delv_msg1, // '배송메시지', // 배송메시지 dev_msg1
 				'', // '현금수령',
-				item.mall_won_code, // '공급가', // mall_won_code
+				item.mall_won_cost, // '공급가', // mall_won_code
 				item.pay_cost, // '매출가',
 				String(item.receive_zipcode).replace(/-/g, ''), // '우편번호', // 우편번호 receive_zipcode
 				'', // '배송비', //
