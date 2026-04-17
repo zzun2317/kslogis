@@ -7,7 +7,8 @@ import { useRouter } from 'next/navigation';
 
 export default function CommonCodePage() {
   const router = useRouter();
-  const { role, isLoggedIn } = useAuthStore();
+  const { role, isLoggedIn, user_level } = useAuthStore();
+  const userLevel = Number(user_level);
   const [loading, setLoading] = useState(false);
   
   // 상태 관리
@@ -21,11 +22,49 @@ export default function CommonCodePage() {
   const [newSub, setNewSub] = useState({
     comm_text1: '', comm_text2: '', comm_use: true, comm_sort: '1', comm_memo: '', comm_hex: ''
   });
+  // 권한 맵 상태 추가
+  const [authMap, setAuthMap] = useState<Record<string, { level: number; label: string }>>({});
+  // superadmin 여부 확인 (역할 '001001' & 레벨 100)
+  const isSuperAdmin = role === '001001' && userLevel === 100;
+  const canEdit = userLevel >= 80;
+
+  // 권한 설정 정보 로드
+  const fetchAuthSettings = async () => {
+    const { data } = await supabase
+      .from('ks_common')
+      .select('comm_text1, comm_text2, comm_memo')
+      .eq('comm_mcode', '000');
+    
+    if (data) {
+      const map = data.reduce((acc: any, cur) => {
+        acc[cur.comm_text1] = {
+        level: Number(cur.comm_text2) || 80, // 권한 레벨
+        label: cur.comm_memo || ''           // 표시될 명칭
+      };
+        return acc;
+      }, {});
+      setAuthMap(map);
+    }
+  };
 
   // 1. 초기 데이터 로드 (대분류 리스트)
   const fetchMainCodes = useCallback(async () => {
     setLoading(true);
     try {
+      // 1. 권한 및 명칭 설정 정보(000 그룹) 조회
+      const { data: authData } = await supabase
+        .from('ks_common')
+        .select('comm_text1, comm_text2, comm_memo')
+        .eq('comm_mcode', '000');
+
+      const tempAuthMap: Record<string, { level: number; label: string }> = {};
+      authData?.forEach(item => {
+        tempAuthMap[item.comm_text1] = {
+          level: Number(item.comm_text2),
+          label: item.comm_memo || '' // 000 그룹에 정의된 메모를 명칭으로 사용
+        };
+      });
+      setAuthMap(tempAuthMap);
       // comm_sort = '1'인 데이터를 기준으로 그룹 목록 조회
       const { data, error } = await supabase
         .from('ks_common')
@@ -34,50 +73,97 @@ export default function CommonCodePage() {
         .order('comm_mcode', { ascending: true });
               
       if (error) throw error;
-      setMainCodes(data || []);
+
+      // authMap을 기준으로 필터링
+      const filtered = (data || []).filter(main => {
+        const requiredLevel = authMap[main.comm_mcode]?.level ?? 80;
+        return userLevel >= requiredLevel;
+      })
+      .map(main => ({
+        ...main,
+        // 명칭도 authMap에 있는 label(메모)을 우선 사용
+        comm_memo: authMap[main.comm_mcode]?.label || main.comm_memo
+      }));
+
+      setMainCodes(filtered);
     } catch (err) {
       console.error("대분류 로드 에러:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [userLevel, authMap]);
+
+  useEffect(() => {
+    // 1. 인증 로딩이 끝났고(false)
+    // 2. 로그인 상태이며
+    // 3. 권한이 관리자('001001')일 때만 호출
+    fetchAuthSettings();
+    fetchMainCodes();
+  }, [isLoggedIn, role, fetchMainCodes]);
+
+  // 2. 소분류 데이터 로드 (특정 대분류 선택 시)
+  // useEffect(() => {
+  //   const fetchSubCodes = async () => {
+  //     if (!selectedMCode) {
+  //       setSubCodes([]);
+  //       return;
+  //     }
+  //     setLoading(true);
+  //     try {
+  //       const { data, error } = await supabase
+  //         .from('ks_common')
+  //         .select('*')
+  //         .eq('comm_mcode', selectedMCode)
+  //         .order('comm_sort', { ascending: true })
+  //         .order('comm_ccode', { ascending: true });
+
+  //       if (error) throw error;
+  //       setSubCodes(data || []);
+  //     } catch (err) {
+  //       console.error("소분류 로드 에러:", err);
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   };
+  //   fetchSubCodes();
+  // }, [selectedMCode]);
+
+  // 소분류 데이터 로드 함수 분리
+  const fetchSubCodes = useCallback(async (mcode: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('ks_common')
+        .select('*')
+        .eq('comm_mcode', mcode)
+        .order('comm_sort', { ascending: true })
+        .order('comm_ccode', { ascending: true });
+
+      if (error) throw error;
+      setSubCodes(data || []);
+    } catch (err) {
+      console.error("소분류 로드 에러:", err);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    // 1. 인증 로딩이 끝났고(false)
-    // 2. 로그인 상태이며
-    // 3. 권한이 관리자('001001')일 때만 호출
-    fetchMainCodes();
-  }, [isLoggedIn, role, fetchMainCodes]);
-
-  // 2. 소분류 데이터 로드 (특정 대분류 선택 시)
-  useEffect(() => {
-    const fetchSubCodes = async () => {
-      if (!selectedMCode) {
-        setSubCodes([]);
-        return;
-      }
-      setLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('ks_common')
-          .select('*')
-          .eq('comm_mcode', selectedMCode)
-          .order('comm_sort', { ascending: true })
-          .order('comm_ccode', { ascending: true });
-
-        if (error) throw error;
-        setSubCodes(data || []);
-      } catch (err) {
-        console.error("소분류 로드 에러:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSubCodes();
-  }, [selectedMCode]);
+    if (selectedMCode) {
+      fetchSubCodes(selectedMCode);
+    } else {
+      setSubCodes([]);
+    }
+  }, [selectedMCode, fetchSubCodes]);
 
   // 3. 대분류 신규 저장 로직 (mcode + 1 및 001 자동생성)
   const handleSaveMain = async () => {
+
+    if (!isSuperAdmin) {
+      alert('그룹 생성 권한이 없습니다.');
+      return;
+    }
+
     if (!newMainMemo.trim()) return alert('그룹 설명을 입력해주세요.');
     setLoading(true);
     try {
@@ -154,7 +240,8 @@ export default function CommonCodePage() {
       setIsAddingSub(false);
       setNewSub({ comm_text1: '', comm_text2: '', comm_use: true, comm_sort: (subCodes.length + 1).toString(), comm_memo: '', comm_hex: '' });
       // 목록 새로고침을 위해 selectedMCode를 다시 세팅하거나 수동 페치
-      setSelectedMCode(selectedMCode); 
+      // setSelectedMCode(selectedMCode); 
+      fetchSubCodes(selectedMCode);
     } catch (err) {
       alert('소분류 저장 실패');
     } finally {
@@ -200,9 +287,11 @@ export default function CommonCodePage() {
           <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
             <div className="p-4 bg-slate-800 text-white flex justify-between items-center shrink-0">
               <span className="font-bold text-sm">대분류 (comm_mcode)</span>
-              <button onClick={() => setIsAddingMain(!isAddingMain)} className="text-xs bg-blue-600 px-3 py-1.5 rounded font-bold hover:bg-blue-700 transition-all">
-                {isAddingMain ? '취소' : '그룹 추가'}
-              </button>
+                {isSuperAdmin && (
+                  <button onClick={() => setIsAddingMain(!isAddingMain)} className="text-xs bg-blue-600 px-3 py-1.5 rounded font-bold hover:bg-blue-700 transition-all">
+                    {isAddingMain ? '취소' : '그룹 추가'}
+                  </button>
+                )}
             </div>
             
             <div className="overflow-auto flex-1">
@@ -247,7 +336,7 @@ export default function CommonCodePage() {
           <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden">
             <div className="p-4 bg-white border-b flex justify-between items-center shrink-0">
               <h2 className="font-black text-slate-800">
-                {selectedMCode ? `[${selectedMCode}] 소분류 상세` : '대분류를 선택해주세요'}
+                {selectedMCode ? `[${selectedMCode}] 소분류 상세 : 명칭수정시 전산담당자 확인 필수` : '대분류를 선택해주세요'}
               </h2>
               {selectedMCode && (
                 <button onClick={() => setIsAddingSub(!isAddingSub)} className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded font-bold hover:bg-emerald-700 transition-all">

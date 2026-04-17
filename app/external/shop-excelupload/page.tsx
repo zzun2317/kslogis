@@ -56,16 +56,38 @@ export default function ShopExcelUploadPage() {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const jsonData: any[] = XLSX.utils.sheet_to_json(ws);
+        const jsonData: any[] = XLSX.utils.sheet_to_json(ws, { 
+          defval: "" // 값이 비어있는 셀을 빈 문자열("")로 채워서 객체 키를 유지합니다.
+        });
         
         if (jsonData.length > 0) {
           const headers = Object.keys(jsonData[0]);
+          // console.log("1. 엑셀 원본 헤더:", headers.map(h => `[${h}]`));//!
           const requiredColumns = selectedMall.comm_text1.split('|');
+          // console.log("2. 설정 기준 컬럼:", requiredColumns.map((c: string) => `[${c}]`));//!
           
           // 컬럼명 검증 (데이터가 잘 들어왔다면 이 로직은 그대로 유지)
-          const hasAllColumns = requiredColumns.every((col: string) => 
-            headers.map(h => h.trim()).includes(col.trim())
-          );
+          // console.log("3. 컬럼별 매칭 상세 분석:"); //!
+          //!
+          const hasAllColumns = requiredColumns.every((col: string) => {
+            const target = col.trim();
+            // 엑셀 헤더들도 trim() 처리하여 비교
+            const isMatch = headers.map(h => h.trim()).includes(target);
+            
+            if (!isMatch) {
+              // 매칭되지 않는 컬럼이 무엇인지 콘솔에 빨간색으로 표시
+              console.error(`   ❌ 불일치 컬럼 발견: "${target}" 항목이 엑셀에 없거나 명칭이 다릅니다.`);
+            } else {
+              console.log(`   ✅ 일치: "${target}"`);
+            }
+            return isMatch;
+          });
+          //!
+
+          // 임시주석처리
+          // const hasAllColumns = requiredColumns.every((col: string) => 
+          //   headers.map(h => h.trim()).includes(col.trim())
+          // );
 
           if (hasAllColumns) {
             setExcelData(jsonData);
