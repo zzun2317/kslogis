@@ -120,10 +120,26 @@ export default function SabangnetVerifyPage() {
 		));
 	};
 
-	// 특정 행의 데이터가 변경되었는지 확인
+	// 특정 행의 데이터가 변경되었는지 확인 260417
 	const isRowChanged = (item: any) => {
-			const original = originalOrders.find(o => o.temp_seq === item.temp_seq);
-			return original && original.erp_set_name !== item.erp_set_name;
+		const original = originalOrders.find(o => o.temp_seq === item.temp_seq);
+		// return original && original.erp_set_name !== item.erp_set_name;
+		if (!original) return false;
+
+			// 체크할 모든 필드 리스트
+		const checkFields = [
+			'erp_set_name', 
+			'erp_underboard', 
+			'erp_sideboard', 
+			'erp_connboard', 
+			'erp_mattress', 
+			'erp_outsideboard', 
+			'erp_footboard', 
+			'erp_gift', 
+			'erp_etc'
+		];
+		// 필드 중 하나라도 값이 다르면 true 반환
+		return checkFields.some(field => item[field] !== original[field]);
 	};
 
 	// 컴포넌트 내부 handleErpNameChange 아래에 추가
