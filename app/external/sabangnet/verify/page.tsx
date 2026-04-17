@@ -337,6 +337,7 @@ export default function SabangnetVerifyPage() {
       // ];
 
 			const headers = [
+				'레터스',
 				'배송상태',
 				'배송출발',
 				'배송완료',
@@ -387,6 +388,7 @@ export default function SabangnetVerifyPage() {
 			];
 
 			const rows = filteredOrders.map(item => [
+				item.letus_gubun,
 				'', // '배송상태',
 				'', // '배송출발',
 				'', // '배송완료',
@@ -604,6 +606,7 @@ export default function SabangnetVerifyPage() {
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[150px]">수취인연락처</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[300px]">수취인주소</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap">수량</th>
+										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[150px]">레터스</th>
 										<th className="px-4 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap min-w-[250px]">품목(상품명)</th>
 										<th className="px-3 py-4 text-white font-bold border-r border-slate-700 whitespace-nowrap w-[60px] text-center">저장</th>
 										<th 
@@ -682,6 +685,9 @@ export default function SabangnetVerifyPage() {
 													</td>
 													<td className="px-4 py-3 text-[12px] text-slate-900 font-bold border-r border-slate-100 text-left">
 														{Number(item.sale_cnt).toLocaleString()}
+													</td>
+													<td className="px-4 py-3 text-slate-700 border-r border-slate-100 whitespace-nowrap">
+															{item.letus_gubun}
 													</td>
 													<td className="px-4 py-3 border-r border-slate-100 min-w-max">
 														<div className="flex flex-col min-w-[300px]">
