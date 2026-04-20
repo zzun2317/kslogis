@@ -84,7 +84,7 @@ export default function ShopExcelUploadPage() {
           });
           //!
 
-          // 임시주석처리
+          // 임시주석처리 260417 파일항목매칭확인
           // const hasAllColumns = requiredColumns.every((col: string) => 
           //   headers.map(h => h.trim()).includes(col.trim())
           // );

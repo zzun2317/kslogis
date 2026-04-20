@@ -52,10 +52,12 @@ export default function CommonCodePage() {
     setLoading(true);
     try {
       // 1. 권한 및 명칭 설정 정보(000 그룹) 조회
-      const { data: authData } = await supabase
+      const { data: authData, error: authError } = await supabase
         .from('ks_common')
         .select('comm_text1, comm_text2, comm_memo')
         .eq('comm_mcode', '000');
+      
+      if (authError) throw authError;
 
       const tempAuthMap: Record<string, { level: number; label: string }> = {};
       authData?.forEach(item => {
@@ -76,13 +78,13 @@ export default function CommonCodePage() {
 
       // authMap을 기준으로 필터링
       const filtered = (data || []).filter(main => {
-        const requiredLevel = authMap[main.comm_mcode]?.level ?? 80;
+        const requiredLevel = tempAuthMap[main.comm_mcode]?.level ?? 80;
         return userLevel >= requiredLevel;
       })
       .map(main => ({
         ...main,
         // 명칭도 authMap에 있는 label(메모)을 우선 사용
-        comm_memo: authMap[main.comm_mcode]?.label || main.comm_memo
+        comm_memo: tempAuthMap[main.comm_mcode]?.label || main.comm_memo
       }));
 
       setMainCodes(filtered);
@@ -91,14 +93,15 @@ export default function CommonCodePage() {
     } finally {
       setLoading(false);
     }
-  }, [userLevel, authMap]);
+  }, [userLevel]);
 
   useEffect(() => {
     // 1. 인증 로딩이 끝났고(false)
     // 2. 로그인 상태이며
     // 3. 권한이 관리자('001001')일 때만 호출
-    fetchAuthSettings();
-    fetchMainCodes();
+    if (isLoggedIn && role === '001001') {
+      fetchMainCodes();
+    }
   }, [isLoggedIn, role, fetchMainCodes]);
 
   // 2. 소분류 데이터 로드 (특정 대분류 선택 시)
@@ -201,7 +204,7 @@ export default function CommonCodePage() {
       // 1. DB에서 해당 대분류(mcode)의 가장 큰 소분류(ccode)를 직접 조회
       const { data: lastData, error: fetchError } = await supabase
         .from('ks_common')
-        .select('comm_ccode')
+        .select('comm_ccode, comm_sort, comm_memo')
         .eq('comm_mcode', selectedMCode)
         .lt('comm_ccode', selectedMCode + '900') // 900번대(관리자용) 제외. 사용자용 공통코드범위 : 00#001 ~ 00#899
         .order('comm_ccode', { ascending: false })
@@ -214,10 +217,16 @@ export default function CommonCodePage() {
       // 2. 신규 코드 결정
       // 데이터가 있으면 마지막 값 + 1, 없으면 mcode + '001'
       let nextCCode;
+      let nextSort;
+      let setmemo;
       if (lastData) {
         nextCCode = (BigInt(lastData.comm_ccode) + BigInt(1)).toString().padStart(6, '0');
+        nextSort = (Number(lastData.comm_sort || 0) + 1).toString();
+        setmemo = lastData.comm_memo;
       } else {
         nextCCode = selectedMCode + '001';
+        nextSort = '1';
+        setmemo = '';
       }
       // 현재 그룹의 마지막 ccode 찾기
       // const lastSub = subCodes.length > 0 ? subCodes[subCodes.length - 1].comm_ccode : selectedMCode + '000';
@@ -232,13 +241,14 @@ export default function CommonCodePage() {
       const { error } = await supabase.from('ks_common').insert([{
         ...newSub,
         comm_mcode: selectedMCode,
-        comm_ccode: nextCCode
+        comm_ccode: nextCCode,
+        comm_sort: nextSort
       }]);
 
       if (error) throw error;
       alert('소분류가 추가되었습니다.');
       setIsAddingSub(false);
-      setNewSub({ comm_text1: '', comm_text2: '', comm_use: true, comm_sort: (subCodes.length + 1).toString(), comm_memo: '', comm_hex: '' });
+      setNewSub({ comm_text1: '', comm_text2: '', comm_use: true, comm_sort: (Number(nextSort) + 1).toString(), comm_memo: setmemo, comm_hex: '' });
       // 목록 새로고침을 위해 selectedMCode를 다시 세팅하거나 수동 페치
       // setSelectedMCode(selectedMCode); 
       fetchSubCodes(selectedMCode);
@@ -339,7 +349,23 @@ export default function CommonCodePage() {
                 {selectedMCode ? `[${selectedMCode}] 소분류 상세 : 명칭수정시 전산담당자 확인 필수` : '대분류를 선택해주세요'}
               </h2>
               {selectedMCode && (
-                <button onClick={() => setIsAddingSub(!isAddingSub)} className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded font-bold hover:bg-emerald-700 transition-all">
+                <button 
+                  onClick={() => {
+                    if (!isAddingSub) {
+                      // 추가 모드로 전환될 때 번호 계산
+                      const lastSort = subCodes.length > 0 
+                        ? Math.max(...subCodes.map(s => Number(s.comm_sort || 0))) 
+                        : 0;
+                      
+                      setNewSub({
+                        ...newSub,
+                        comm_sort: (lastSort + 1).toString(),
+                        comm_text1: '', comm_text2: '', comm_memo: '', comm_hex: '', comm_use: true
+                      });
+                    }
+                    setIsAddingSub(!isAddingSub);
+                  }} 
+                  className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded font-bold hover:bg-emerald-700 transition-all">
                   {isAddingSub ? '취소' : '상세 추가'}
                 </button>
               )}
