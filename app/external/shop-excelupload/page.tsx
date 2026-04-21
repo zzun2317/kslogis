@@ -267,6 +267,64 @@ export default function ShopExcelUploadPage() {
     };
   };
 
+  //* 기타 쇼핑몰: 리빙앤에프009030-8100, 누마르009031-14006, 기타판매(온라인)009032-857
+  const transformEtc = (row: any) => {
+    const sabangIdx = String(row['주문번호'] || '');
+    const regDate = getFormattedDate(); // 수집일자
+    const mallName = String(row['업체'] || '').trim();
+    
+    // 우편번호 하이픈 제거 로직
+    const rawZipCode = String(row['우편번호'] || '');
+    const cleanZipCode = rawZipCode.replace(/-/g, '');
+    const mallMap: { [key: string]: { mallUserId: string, ccode: string } } = {
+      '리빙앤에프': { mallUserId: '8100', ccode: '009030' },
+      '누마르': { mallUserId: '14006', ccode: '009031' },
+      '기타판매(온라인)': { mallUserId: '857', ccode: '009032' }
+    };
+    const currentConfig = mallMap[mallName] || { mallUserId: '', ccode: '' };
+
+    const rawData = {
+      "IDX": sabangIdx,
+      "MALL_ID": String(row['업체'] || ''),
+      "PARTNER_ID": String(row['업체'] || ''),
+      "DPARTNER_ID": String('지역'),
+      "MALL_PRODUCT_ID": String(row['상품코드'] || ''),
+      "PRODUCT_ID": String(row['상품코드'] || ''),
+      "P_PRODUCT_NAME": String(row['상품명'] || ''),
+      "P_SKU_VALUE": String(row['색상'] || ''),
+      "PRODUCT_NAME": String(row['상품명'] || ''),
+      "SKU_VALUE": String(row['매트'] || ''),
+      "ORDER_ID": String(row['주문번호'] || ''),
+      "USER_NAME": String(row['주문인'] || ''),
+      "USER_TEL": String(row['주문인연락처'] || ''),
+      "USER_CEL": String(row['주문인연락처'] || ''),
+      "SALE_CNT": String(row['수량'] || ''),
+      "RECEIVE_NAME": String(row['수취인'] || ''),
+      "RECEIVE_TEL": String(row['수취인연락처1'] || ''),
+      "RECEIVE_CEL": String(row['수취인연락처2'] || ''),
+      "RECEIVE_ADDR": String(row['주소'] || ''),
+      "ORDER_DATE": String(row['발주일'] || ''),
+      "HOPE_DELV_DATE": String(row['배송일'] || ''),
+      "DELV_MSG": String(row['배송메시지'] || ''),
+      "DELV_MSG1": String(row['배송메시지'] || ''),
+      "ETC_MSG": String(row['통화내용'] || ''),
+      "PAY_COST": String(row['매출가'] || ''),
+      "MALL_WON_COST": String(row['공급가'] || ''),
+      "DELV_COST": String(row['배송비']),
+      "RECEIVE_ZIPCODE": cleanZipCode,
+      "MALL_USER_ID": currentConfig.mallUserId, // 업체명mall_user_id: 리빙앤에프8100, 누마르14006, 기타판매(온라인)857
+      "REG_DATE": regDate
+    };
+
+    return {
+      sabang_idx: sabangIdx,
+      raw_data: rawData,
+      order_gubun: '인터넷' as const,
+      status: 'wait' as const,
+      comm_ccode: currentConfig.ccode // 업체명comm_ccode: 리빙앤에프009030, 누마르009031, 기타판매(온라인)009032
+    };
+  };
+
   // 2. 메인 저장 핸들러
   const handleSaveToTemp = async () => {
     if (!selectedMall || excelData.length === 0) return;
@@ -288,6 +346,9 @@ export default function ShopExcelUploadPage() {
     } else if (selectedMall.comm_text2.includes('에몬스')) {
       // 에몬스(사방넷)용 매핑 함수 호출
       transformedData = excelData.map(row => transformEmons(row));
+    } else if (selectedMall.comm_text2.includes('온라인기타')) {
+      // 온라인기타용 매핑 함수 호출
+      transformedData = excelData.map(row => transformEtc(row));
     } else {
       alert('지원하지 않는 쇼핑몰 양식입니다.');
       setIsLoading(false);
