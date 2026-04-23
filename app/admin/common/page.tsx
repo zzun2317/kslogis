@@ -99,10 +99,8 @@ export default function CommonCodePage() {
     // 1. 인증 로딩이 끝났고(false)
     // 2. 로그인 상태이며
     // 3. 권한이 관리자('001001')일 때만 호출
-    // if (isLoggedIn && role === '001001') {
       fetchAuthSettings();
       fetchMainCodes();
-    // }
   }, [isLoggedIn, role, fetchMainCodes]);
 
   // 2. 소분류 데이터 로드 (특정 대분류 선택 시)
