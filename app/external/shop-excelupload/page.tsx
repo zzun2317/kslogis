@@ -268,8 +268,8 @@ export default function ShopExcelUploadPage() {
   };
 
   //* 기타 쇼핑몰: 리빙앤에프009030-8100, 누마르009031-14006, 기타판매(온라인)009032-857
-  const transformEtc = (row: any) => {
-    const sabangIdx = String(row['주문번호'] || '');
+  const transformEtc = (row: any, uniqueIdx: string) => {
+    // const sabangIdx = String(row['주문번호'] || '');
     const regDate = getFormattedDate(); // 수집일자
     const mallName = String(row['업체'] || '').trim();
     
@@ -284,10 +284,10 @@ export default function ShopExcelUploadPage() {
     const currentConfig = mallMap[mallName] || { mallUserId: '', ccode: '' };
 
     const rawData = {
-      "IDX": sabangIdx,
+      "IDX": uniqueIdx,
       "MALL_ID": String(row['업체'] || ''),
       "PARTNER_ID": String(row['업체'] || ''),
-      "DPARTNER_ID": String('지역'),
+      "DPARTNER_ID": String(row['지역'] || ''),
       "MALL_PRODUCT_ID": String(row['상품코드'] || ''),
       "PRODUCT_ID": String(row['상품코드'] || ''),
       "P_PRODUCT_NAME": String(row['상품명'] || ''),
@@ -310,14 +310,14 @@ export default function ShopExcelUploadPage() {
       "ETC_MSG": String(row['통화내용'] || ''),
       "PAY_COST": String(row['매출가'] || ''),
       "MALL_WON_COST": String(row['공급가'] || ''),
-      "DELV_COST": String(row['배송비']),
+      "DELV_COST": String(row['배송비'] || ''),
       "RECEIVE_ZIPCODE": cleanZipCode,
       "MALL_USER_ID": currentConfig.mallUserId, // 업체명mall_user_id: 리빙앤에프8100, 누마르14006, 기타판매(온라인)857
       "REG_DATE": regDate
     };
 
     return {
-      sabang_idx: sabangIdx,
+      sabang_idx: uniqueIdx,
       raw_data: rawData,
       order_gubun: '인터넷' as const,
       status: 'wait' as const,
@@ -336,6 +336,19 @@ export default function ShopExcelUploadPage() {
     // 현재 선택된 몰 코드(예: 010001)에 따라 어떤 변환 함수를 쓸지 결정
     // (임시로 'sk'라고 가정)
     let transformedData: TempOrder[] = [];
+    // 하나의 파일에 주문번호가 동일한 경우 번호 분리
+    const orderCountMap: { [key: string]: number } = {};
+    const getUniqueOrderId = (orderId: string) => {
+      const id = String(orderId || '');
+      if (!orderCountMap[id]) {
+        orderCountMap[id] = 1;
+        return id; // 첫 번째는 원본 그대로 사용
+      } else {
+        const count = orderCountMap[id];
+        orderCountMap[id] = count + 1;
+        return `${id}-${String(count).padStart(2, '0')}`; // 두 번째부터 -01, -02...
+      }
+    };
     
     if (selectedMall.comm_text2.includes('SK')) {
       // SK스토아용 매핑 함수 호출
@@ -348,7 +361,10 @@ export default function ShopExcelUploadPage() {
       transformedData = excelData.map(row => transformEmons(row));
     } else if (selectedMall.comm_text2.includes('온라인기타')) {
       // 온라인기타용 매핑 함수 호출
-      transformedData = excelData.map(row => transformEtc(row));
+      transformedData = excelData.map(row => {
+        const uniqueIdx = getUniqueOrderId(row['주문번호']);
+        return transformEtc(row, uniqueIdx);
+      });
     } else {
       alert('지원하지 않는 쇼핑몰 양식입니다.');
       setIsLoading(false);
