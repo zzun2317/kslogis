@@ -73,7 +73,7 @@ export default function CommonCodePage() {
         .select('comm_mcode, comm_memo')
         .eq('comm_sort', '1')
         .order('comm_mcode', { ascending: true });
-              
+
       if (error) throw error;
 
       // authMap을 기준으로 필터링
