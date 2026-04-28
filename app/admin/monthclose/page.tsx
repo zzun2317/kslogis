@@ -77,8 +77,9 @@ export default function DeliveryClosePage() {
       alert('등록 및 수정 권한이 없습니다. 관리자에게 권한을 요청바랍니다.');
       return;
     }
-    
+
     try {
+      const { data: { user } } = await supabase.auth.getUser();
       const rawMonth = formData.close_month.replace('-', ''); // yyyy-mm -> yyyymm
       if (!rawMonth) return alert('마감년월을 선택해주세요.');
 
@@ -87,16 +88,22 @@ export default function DeliveryClosePage() {
         const { error } = await supabase
           .from('ks_deliveryclose')
           .update({
-            close_month: rawMonth,
-            close_gubun: formData.close_gubun
+            close_gubun: formData.close_gubun,
+            close_uuid: user?.id,
+            close_datetime: new Date().toISOString()
           })
           .eq('no', formData.no);
         if (error) throw error;
       } else {
         // 신규 등록 로직
         // 1. 중복 체크
-        const isDuplicate = dataList.some(item => item.close_month === rawMonth);
-        if (isDuplicate) return alert('이미 해당 년월의 마감 데이터가 존재합니다.');
+        const { data: existing } = await supabase
+          .from('ks_deliveryclose')
+          .select('close_month')
+          .eq('close_month', rawMonth)
+          .maybeSingle(); // 데이터가 없어도 에러를 내지 않음
+
+        if (existing) return alert('이미 해당 년월의 마감 데이터가 존재합니다.');
 
         // 2. No 채번 (Max + 1)
         const { data: maxData } = await supabase
@@ -104,11 +111,12 @@ export default function DeliveryClosePage() {
           .select('no')
           .order('no', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
+        
         const nextNo = (maxData?.no || 0) + 1;
 
         // 3. 사용자 정보 가져오기 (세션 등에서 가져온다고 가정)
-        const { data: { user } } = await supabase.auth.getUser();
+        // const { data: { user } } = await supabase.auth.getUser();
 
         const { error } = await supabase
           .from('ks_deliveryclose')
@@ -116,7 +124,8 @@ export default function DeliveryClosePage() {
             no: nextNo,
             close_month: rawMonth,
             close_gubun: formData.close_gubun,
-            close_uuid: user?.id
+            close_uuid: user?.id,
+            close_datetime: new Date().toISOString()
           });
         if (error) throw error;
       }
@@ -217,7 +226,8 @@ export default function DeliveryClosePage() {
                   type="month" 
                   value={formData.close_month}
                   onChange={(e) => setFormData({...formData, close_month: e.target.value})}
-                  className={filterInputStyle} 
+                  readOnly={isEditMode}
+                  className={`${filterInputStyle} ${isEditMode ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''}`}
                 />
               </div>
 
